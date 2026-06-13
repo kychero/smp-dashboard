@@ -1,0 +1,39 @@
+# ===== 절대 커밋 금지: 대용량 바이너리 / 민감정보 =====
+# 번들된 Windows DLL (lightgbm/numpy/scipy/sklearn 등, 249MB)
+.pydeps/
+# 실행 로그
+logs/
+# 원천 수집 데이터 (78MB)
+raw/
+# 가공 데이터 CSV + 개인 경로 포함
+processed/
+# latest_run.json 에 SharePoint 링크/개인 경로 포함
+daily_outputs/
+latest_run.json
+# 웹훅 URL/SharePoint 링크 등 비밀값 → example.json 만 커밋
+agent_config.json
+.env
+secrets.*
+# 외부 리서치 워크북
+*.xlsb
+
+# ===== 실제 SharePoint/웹훅 링크가 박혀 있어 스크럽 전 커밋 금지 =====
+# (placeholder 로 치환한 사본을 만들면 git add -f 로 강제 추가)
+POWER_AUTOMATE_SETUP.md
+DAILY_AGENT_SETUP.md
+
+# ===== 예측 산출물 엑셀 (용량 큼, 선택) =====
+forecasts/
+*.xlsx
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# ===== OS / 에디터 =====
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

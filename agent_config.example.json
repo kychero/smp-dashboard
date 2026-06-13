@@ -1,0 +1,19 @@
+{
+  "target_regions": [
+    "LAND",
+    "JEJU"
+  ],
+  "issue_hour": "0610",
+  "train_years": 3,
+  "validation_days": 30,
+  "output_dir": "C:/path/to/SMP_Daily/forecasts",
+  "teams_files_dir": "C:/path/to/SMP_Daily/forecasts",
+  "teams_file_link_base": "<<REDACTED — set locally, do not commit>>",
+  "teams_webhook_url": "<<REDACTED — set locally, do not commit>>",
+  "send_teams": true,
+  "champion_model_id": "MDL-04",
+  "risk_model_id": "MDL-07",
+  "fetch_sleep_sec": 0.2,
+  "dashboard_enabled": true,
+  "dashboard_root": "C:/path/to/SMP_Daily"
+}

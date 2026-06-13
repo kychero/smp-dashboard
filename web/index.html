@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>내일 SMP 예측 · 모델 비교</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.1/echarts.min.js"></script>
+<style>
+  :root{
+    --bg:#0E1116; --panel:#151A21; --panel-2:#1B222B; --line:#28313D;
+    --text:#E8EDF4; --muted:#8C97A8;
+    --peak:#FFB22E; --offpeak:#39C2D6; --ensemble:#FFE7A8;
+    --champ:#54D6A0; --good:#54D6A0; --bad:#FF6B6B;
+    --r:14px;
+    --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+    --sans:'Pretendard',-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;
+  }
+  *{box-sizing:border-box} html,body{margin:0;padding:0}
+  body{background:
+      radial-gradient(1200px 500px at 78% -10%, rgba(255,178,46,.06), transparent 60%),
+      radial-gradient(900px 500px at 0% 0%, rgba(57,194,214,.05), transparent 55%), var(--bg);
+    color:var(--text);font-family:var(--sans);-webkit-font-smoothing:antialiased;line-height:1.4}
+  .num{font-family:var(--mono);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+  .wrap{max-width:1320px;margin:0 auto;padding:20px 22px 40px}
+  .top{display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding:6px 2px 18px}
+  .brand{display:flex;align-items:center;gap:11px;margin-right:auto}
+  .spark{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,var(--offpeak),var(--peak));
+    display:grid;place-items:center;box-shadow:0 0 0 1px rgba(255,255,255,.08),0 6px 20px rgba(255,178,46,.18)}
+  .spark svg{width:18px;height:18px}
+  .brand h1{font-size:15px;font-weight:700;margin:0;letter-spacing:-.01em}
+  .brand .sub{font-size:11.5px;color:var(--muted);margin-top:1px}
+  .seg{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:3px}
+  .seg button{font-family:var(--sans);font-size:12.5px;color:var(--muted);background:none;border:0;padding:6px 12px;border-radius:7px;cursor:pointer;font-weight:600}
+  .seg button[aria-pressed="true"]{background:var(--panel-2);color:var(--text);box-shadow:inset 0 0 0 1px var(--line)}
+  .meta{display:flex;align-items:center;gap:14px;font-size:12px;color:var(--muted);flex-wrap:wrap}
+  .meta b{color:var(--text);font-weight:600}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--good);box-shadow:0 0 0 3px rgba(84,214,160,.18)}
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:4px 0 18px}
+  .kpi{background:linear-gradient(180deg,var(--panel),rgba(21,26,33,.6));border:1px solid var(--line);border-radius:var(--r);padding:15px 16px 14px;position:relative;overflow:hidden}
+  .kpi .lab{font-size:11.5px;color:var(--muted);font-weight:600}
+  .kpi .val{font-size:30px;font-weight:600;margin-top:8px}
+  .kpi .val small{font-size:13px;color:var(--muted);font-weight:500;margin-left:4px}
+  .kpi .meta2{font-size:11.5px;color:var(--muted);margin-top:6px}
+  .kpi .meta2 .up{color:var(--peak)} .kpi .meta2 .dn{color:var(--offpeak)}
+  .kpi .edge{position:absolute;left:0;top:0;bottom:0;width:3px}
+  .grid{display:grid;grid-template-columns:1fr 332px;gap:14px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px}
+  .card h2{font-size:13.5px;margin:0 0 2px;font-weight:700;letter-spacing:-.01em}
+  .card .desc{font-size:11.5px;color:var(--muted);margin:0 0 10px}
+  .chart-tools{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+  .chip{font-size:11.5px;color:var(--muted);background:var(--panel-2);border:1px solid var(--line);border-radius:999px;padding:5px 11px;cursor:pointer;font-weight:600;display:inline-flex;gap:7px;align-items:center;font-family:var(--sans)}
+  .chip[aria-pressed="true"]{color:var(--text)}
+  .chip .sw{width:18px;height:3px;border-radius:2px;display:inline-block}
+  #mainChart{width:100%;height:430px}
+  #heatChart{width:100%;height:300px}
+  #mapeChart{width:100%;height:300px}
+  .mpanel{display:flex;flex-direction:column;height:100%}
+  .mhead{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+  .mhead .hint{font-size:11px;color:var(--muted)}
+  .mlist{display:flex;flex-direction:column;gap:5px;overflow:auto}
+  .m{display:grid;grid-template-columns:14px 1fr auto auto;gap:10px;align-items:center;padding:9px 10px;border-radius:10px;border:1px solid transparent;cursor:pointer;background:var(--panel-2)}
+  .m:hover{border-color:var(--line)} .m.off{opacity:.4}
+  .m .sw{width:11px;height:11px;border-radius:3px}
+  .m .nm{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .m .nm .tag{display:block;font-size:10px;color:var(--muted);font-weight:500}
+  .m .avg{font-size:12.5px;text-align:right;color:var(--text)}
+  .m .avg span{display:block;font-size:9.5px;color:var(--muted)}
+  .m .mape{font-size:12px;text-align:right;font-weight:600;min-width:46px}
+  .m.ens{background:linear-gradient(180deg,rgba(255,231,168,.08),var(--panel-2));border-color:rgba(255,231,168,.25)}
+  .legend-foot{font-size:10.5px;color:var(--muted);margin-top:10px;line-height:1.6}
+  .pill{font-family:var(--mono);font-size:11px;padding:2px 7px;border-radius:6px;background:var(--panel-2);border:1px solid var(--line)}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
+  .foot{margin-top:22px;font-size:11px;color:var(--muted);text-align:center;line-height:1.7}
+  .ttip{font-family:var(--sans);font-size:12px}
+  .ttip .th{font-weight:700;margin-bottom:6px}
+  .ttip .tr{display:flex;justify-content:space-between;gap:18px;line-height:1.6}
+  .ttip .tr b{font-family:var(--mono);font-variant-numeric:tabular-nums}
+  .banner{display:none;background:rgba(255,107,107,.1);border:1px solid rgba(255,107,107,.4);color:#FFC9C9;padding:12px 16px;border-radius:12px;font-size:12.5px;margin-bottom:14px}
+  @media (max-width:1000px){.kpis{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:1fr}.row2{grid-template-columns:1fr}#mainChart{height:360px}}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+  :focus-visible{outline:2px solid var(--peak);outline-offset:2px;border-radius:6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <div class="spark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z" fill="#0E1116"/></svg></div>
+      <div><h1>내일 SMP 예측</h1><div class="sub">계통한계가격 · 모델 비교 · Day-ahead</div></div>
+    </div>
+    <div class="seg" id="regionSeg" role="group" aria-label="지역 선택"></div>
+    <div class="meta">
+      <span>대상일 <b id="targetDate">—</b></span>
+      <span>발표 <b id="issueTs">—</b></span>
+      <span>단위 <b id="unit">원/kWh</b></span>
+      <span class="dot" aria-hidden="true"></span>
+      <span>챔피언 <b id="champBadge">—</b></span>
+    </div>
+  </header>
+
+  <div class="banner" id="banner"></div>
+
+  <section class="kpis" aria-label="요약 지표">
+    <div class="kpi"><div class="edge" style="background:var(--ensemble)"></div><div class="lab" id="kAvgLab">앙상블 평균</div><div class="val num" id="kAvg">—<small>원/kWh</small></div><div class="meta2" id="kAvgSub">—</div></div>
+    <div class="kpi"><div class="edge" style="background:var(--peak)"></div><div class="lab">예상 최고가 · 피크</div><div class="val num" id="kPeak">—<small>원</small></div><div class="meta2" id="kPeakHr">—</div></div>
+    <div class="kpi"><div class="edge" style="background:var(--offpeak)"></div><div class="lab">예상 최저가 · 심야</div><div class="val num" id="kLow">—<small>원</small></div><div class="meta2" id="kLowHr">—</div></div>
+    <div class="kpi"><div class="edge" style="background:#C792EA"></div><div class="lab">모델 간 최대 분산</div><div class="val num" id="kSpread">—<small>원</small></div><div class="meta2" id="kSpreadHr">—</div></div>
+  </section>
+
+  <div class="grid">
+    <section class="card">
+      <h2>시간대별 SMP 예측 곡선</h2>
+      <p class="desc">각 모델의 24시간 예측(p50). 굵은 골드선=앙상블, 음영=모델 간 범위(min–max), 배경 음영=심야·피크 시간대. x축은 시간대(hour-ending).</p>
+      <div class="chart-tools">
+        <button class="chip" id="tEns" aria-pressed="true"><span class="sw" style="background:var(--ensemble)"></span>앙상블</button>
+        <button class="chip" id="tBand" aria-pressed="true"><span class="sw" style="background:#C792EA;opacity:.5"></span>분산 밴드</button>
+        <button class="chip" id="tChamp" aria-pressed="false"><span class="sw" style="background:var(--champ);opacity:.5"></span>챔피언 P10–P90</button>
+        <button class="chip" id="tRibbon" aria-pressed="true"><span class="sw" style="background:linear-gradient(90deg,var(--offpeak),var(--peak))"></span>시간대 리본</button>
+      </div>
+      <div id="mainChart"></div>
+    </section>
+
+    <aside class="card mpanel">
+      <div class="mhead"><div><h2>모델</h2><p class="desc" style="margin:0">클릭하면 곡선 표시/숨김</p></div><div class="hint">내일 평균 · MAPE</div></div>
+      <div class="mlist" id="modelList"></div>
+      <div class="legend-foot">MAPE = 백테스트 기준 평균 절대 백분율 오차(낮을수록 정확). <span class="pill" id="btPill">backtest</span></div>
+    </aside>
+  </div>
+
+  <div class="row2">
+    <section class="card"><h2>모델 × 시간대 히트맵</h2><p class="desc">행=모델, 열=시각. 색이 진할수록 고가. 세로로 색이 갈리면 모델 간 이견이 큼.</p><div id="heatChart"></div></section>
+    <section class="card"><h2>백테스트 정확도 (MAPE)</h2><p class="desc">모델별 평균 오차. 짧을수록(시안) 정확, 길수록(앰버) 부정확.</p><div id="mapeChart"></div></section>
+  </div>
+
+  <p class="foot" id="foot">SMP 예측 툴 산출물(all_model_forecasts · backtest metrics)을 연결한 화면입니다.</p>
+</div>
+
+<script src="data.js"></script>
+<script>
+(function(){
+  const D = window.SMP_DATA;
+  const $ = s=>document.querySelector(s);
+  if(!D || !D.regions){ const b=$('#banner'); b.style.display='block';
+    b.textContent='data.js 를 불러오지 못했습니다. build_dashboard_data.py 로 web/data.js 를 생성한 뒤, 로컬에서는 python -m http.server 로 열어주세요.'; return; }
+
+  const PALETTE = {'MDL-01':'#6EA8FE','MDL-02':'#8AB4F8','MDL-03':'#57D9A3','MDL-04':'#54D6A0',
+    'MDL-05':'#F6C445','MDL-06':'#C792EA','MDL-07':'#FFE7A8','MDL-08':'#FF9F6B'};
+  const FALLBACK=['#6EA8FE','#57D9A3','#F6C445','#C792EA','#FF9F6B','#F178B6','#4FD1C5','#8AB4F8'];
+  const ENS_COLOR='#FFE7A8';
+
+  const regionKeys = Object.keys(D.regions);
+  let state = { region: regionKeys.includes('JEJU')?'JEJU':regionKeys[0],
+    visible:{}, showEns:true, showBand:true, showChamp:false, showRibbon:true };
+
+  function colorOf(m,i){ return m.role==='ensemble'?ENS_COLOR:(PALETTE[m.id]||FALLBACK[i%FALLBACK.length]); }
+  function reg(){ return D.regions[state.region]; }
+  function hoursLabels(){ return reg().hours.map(h=>String(h)); }
+  function ensembleModel(){ return reg().models.find(m=>m.role==='ensemble'); }
+
+  // header
+  $('#targetDate').textContent = D.meta.target_date||'—';
+  $('#issueTs').textContent = (D.meta.issue_ts||'').replace('T',' ').slice(0,16)||'—';
+  $('#unit').textContent = D.meta.unit||'원/kWh';
+  $('#champBadge').textContent = D.meta.champion_id||'—';
+  $('#btPill').textContent = D.meta.backtest_period||'backtest';
+
+  // region tabs
+  const seg=$('#regionSeg');
+  const RNAME={JEJU:'제주',LAND:'육지'};
+  regionKeys.forEach(rk=>{ const b=document.createElement('button');
+    b.textContent=RNAME[rk]||rk; b.setAttribute('aria-pressed', rk===state.region);
+    b.onclick=()=>{ state.region=rk; initVisible(); [...seg.children].forEach(x=>x.setAttribute('aria-pressed','false')); b.setAttribute('aria-pressed','true'); renderAll(); };
+    seg.appendChild(b);
+  });
+
+  function initVisible(){ state.visible={}; reg().models.forEach(m=>state.visible[m.id]=true); }
+
+  // charts
+  const mainChart=echarts.init($('#mainChart'));
+  const heatChart=echarts.init($('#heatChart'));
+  const mapeChart=echarts.init($('#mapeChart'));
+
+  function bandSeries(){
+    const ms=reg().models, n=reg().hours.length, lo=[],rng=[];
+    for(let h=0;h<n;h++){ const vals=ms.map(m=>m.p50[h]).filter(v=>v!=null);
+      const mn=Math.min(...vals),mx=Math.max(...vals); lo.push(+mn.toFixed(1)); rng.push(+(mx-mn).toFixed(1)); }
+    return [
+      {name:'_lo',type:'line',stack:'band',data:lo,lineStyle:{opacity:0},symbol:'none',areaStyle:{opacity:0},silent:true,z:1},
+      {name:'모델 범위',type:'line',stack:'band',data:rng,lineStyle:{opacity:0},symbol:'none',areaStyle:{color:'#C792EA',opacity:.13},silent:true,z:1}
+    ];
+  }
+  function ribbonAreas(){
+    if(!state.showRibbon) return [];
+    const L=hoursLabels(); const at=i=>L[Math.min(i,L.length-1)];
+    return [
+      [{xAxis:at(0),itemStyle:{color:'rgba(57,194,214,.07)'}},{xAxis:at(4)}],
+      [{xAxis:at(21),itemStyle:{color:'rgba(57,194,214,.07)'}},{xAxis:at(23)}],
+      [{xAxis:at(16),itemStyle:{color:'rgba(255,178,46,.09)'}},{xAxis:at(19)}]
+    ];
+  }
+
+  function renderMain(){
+    const ms=reg().models, series=[];
+    if(state.showBand) series.push(...bandSeries());
+
+    // champion P10-P90 band
+    const champ=ms.find(m=>m.role==='champion');
+    if(state.showChamp && champ && champ.p10 && champ.p90){
+      const lo=champ.p10.map(v=>v==null?0:v);
+      const rng=champ.p90.map((v,h)=>v==null||champ.p10[h]==null?0:+(v-champ.p10[h]).toFixed(1));
+      series.push({name:'_clo',type:'line',stack:'cband',data:lo,lineStyle:{opacity:0},symbol:'none',areaStyle:{opacity:0},silent:true,z:2});
+      series.push({name:'챔피언 P10–P90',type:'line',stack:'cband',data:rng,lineStyle:{opacity:0},symbol:'none',areaStyle:{color:'#54D6A0',opacity:.12},silent:true,z:2});
+    }
+
+    ms.forEach((m,i)=>{
+      const isEns=m.role==='ensemble';
+      series.push({ name:m.name_ko, type:'line', smooth:true, symbol:'none', data:m.p50,
+        lineStyle:{ width:isEns?3.4:(m.role==='champion'?2.4:1.6), color:colorOf(m,i),
+          opacity: isEns?(state.showEns?1:0):(state.visible[m.id]?.92:0),
+          shadowBlur:isEns?10:0, shadowColor:'rgba(255,231,168,.4)'},
+        emphasis:{lineStyle:{width:isEns?4:3}}, z:isEns?6:(m.role==='champion'?5:3),
+        markArea: i===0?{silent:true,data:ribbonAreas()}:undefined });
+    });
+
+    mainChart.setOption({
+      grid:{left:48,right:16,top:14,bottom:30},
+      tooltip:{trigger:'axis',backgroundColor:'#0E1116',borderColor:'#28313D',textStyle:{color:'#E8EDF4'},
+        formatter:function(ps){ const h=ps[0].axisValue; let rows='';
+          const ms2=reg().models;
+          const e=ms2.find(m=>m.role==='ensemble');
+          if(e && state.showEns){ const p=ps.find(x=>x.seriesName===e.name_ko); if(p) rows+=`<div class="tr"><span style="color:${ENS_COLOR}">● ${e.name_ko}</span><b>${p.data}</b></div>`; }
+          ms2.forEach((m,i)=>{ if(m.role==='ensemble'||!state.visible[m.id])return;
+            const p=ps.find(x=>x.seriesName===m.name_ko); if(!p||p.data==null)return;
+            rows+=`<div class="tr"><span style="color:${colorOf(m,i)}">● ${m.name_ko}</span><b>${p.data}</b></div>`; });
+          return `<div class="ttip"><div class="th">${h}시(종료) · ${D.meta.unit}</div>${rows}</div>`; }},
+      legend:{show:false},
+      xAxis:{type:'category',data:hoursLabels(),boundaryGap:false,axisLine:{lineStyle:{color:'#28313D'}},axisTick:{show:false},
+        axisLabel:{color:'#8C97A8',fontSize:11,interval:1,formatter:v=>v+'시'}},
+      yAxis:{type:'value',scale:true,splitLine:{lineStyle:{color:'rgba(40,49,61,.6)'}},axisLabel:{color:'#8C97A8',fontSize:11,fontFamily:'IBM Plex Mono'}},
+      series
+    },true);
+  }
+
+  function renderHeat(){
+    const ms=reg().models, L=hoursLabels(), pts=[]; let mn=1e9,mx=-1e9;
+    ms.forEach((m,r)=>m.p50.forEach((v,h)=>{ if(v==null)return; pts.push([h,r,v]); mn=Math.min(mn,v);mx=Math.max(mx,v); }));
+    heatChart.setOption({
+      grid:{left:120,right:56,top:8,bottom:30},
+      tooltip:{backgroundColor:'#0E1116',borderColor:'#28313D',textStyle:{color:'#E8EDF4'},
+        formatter:p=>`${ms[p.value[1]].name_ko} · ${L[p.value[0]]}시<br><b>${p.value[2]} ${D.meta.unit}</b>`},
+      xAxis:{type:'category',data:L,axisLabel:{color:'#8C97A8',fontSize:10,interval:2},axisLine:{lineStyle:{color:'#28313D'}},axisTick:{show:false}},
+      yAxis:{type:'category',data:ms.map(m=>m.name_ko),axisLabel:{color:'#C3CCDA',fontSize:11},axisLine:{show:false},axisTick:{show:false}},
+      visualMap:{min:Math.floor(mn),max:Math.ceil(mx),calculable:true,orient:'vertical',right:6,top:'center',itemHeight:130,textStyle:{color:'#8C97A8',fontSize:10},
+        inRange:{color:['#16313A','#1E6F7E','#39C2D6','#F6C445','#FFB22E','#FF6B6B']}},
+      series:[{type:'heatmap',data:pts,itemStyle:{borderColor:'#0E1116',borderWidth:1},emphasis:{itemStyle:{borderColor:'#E8EDF4',borderWidth:1}}}]
+    },true);
+  }
+
+  function renderMape(){
+    const ms=reg().models.filter(m=>m.mape!=null);
+    const sorted=[...ms].sort((a,b)=>b.mape-a.mape);
+    const vals=ms.map(m=>m.mape), mn=Math.min(...vals), mx=Math.max(...vals);
+    const col=v=>{const t=(v-mn)/((mx-mn)||1),l=(a,b)=>Math.round(a+(b-a)*t);return`rgb(${l(57,255)},${l(194,107)},${l(214,46)})`;};
+    mapeChart.setOption({
+      grid:{left:128,right:52,top:8,bottom:24},
+      tooltip:{backgroundColor:'#0E1116',borderColor:'#28313D',textStyle:{color:'#E8EDF4'},
+        formatter:p=>{const m=sorted[p.dataIndex];return `${m.name_ko}<br><b>MAPE ${m.mape}%</b><br>RMSE ${m.rmse??'—'} · MAE ${m.mae??'—'}`;}},
+      xAxis:{type:'value',axisLabel:{color:'#8C97A8',fontSize:10,formatter:'{value}%'},splitLine:{lineStyle:{color:'rgba(40,49,61,.6)'}}},
+      yAxis:{type:'category',data:sorted.map(m=>m.name_ko),axisLabel:{color:'#C3CCDA',fontSize:11},axisLine:{show:false},axisTick:{show:false}},
+      series:[{type:'bar',barWidth:'58%',data:sorted.map(m=>({value:m.mape,itemStyle:{color:col(m.mape),borderRadius:[0,5,5,0]}})),
+        label:{show:true,position:'right',color:'#C3CCDA',fontFamily:'IBM Plex Mono',fontSize:11,formatter:'{c}%'}}]
+    },true);
+  }
+
+  function renderPanel(){
+    const ms=reg().models, list=$('#modelList'); list.innerHTML='';
+    const withMape=ms.filter(m=>m.mape!=null);
+    const bestId=withMape.length?[...withMape].sort((a,b)=>a.mape-b.mape)[0].id:null;
+    const ordered=[...ms].sort((a,b)=>(a.mape??99)-(b.mape??99));
+    ordered.forEach((m,idx)=>{
+      const i=ms.indexOf(m), c=colorOf(m,i), isEns=m.role==='ensemble';
+      const row=document.createElement('div');
+      row.className='m'+(isEns?' ens':'')+((isEns?!state.showEns:!state.visible[m.id])?' off':'');
+      row.setAttribute('role','button'); row.tabIndex=0;
+      let tag = isEns?'검증가중 앙상블'
+        : m.id===D.meta.champion_id?'<span style="color:var(--good)">챔피언</span>'
+        : m.id===bestId?'<span style="color:var(--good)">백테스트 최적</span>'
+        : (m.name||m.id);
+      const mapeColor = m.mape==null?'var(--muted)':(m.mape<=8.6?'var(--good)':m.mape>=11?'var(--bad)':'#C3CCDA');
+      row.innerHTML=`<span class="sw" style="background:${c}"></span>
+        <span class="nm">${m.name_ko} <span class="tag">${tag}</span></span>
+        <span class="avg num">${m.avg??'—'}<span>원/kWh</span></span>
+        <span class="mape num" style="color:${mapeColor}">${m.mape==null?'—':m.mape+'%'}</span>`;
+      const toggle=()=>{ if(isEns){state.showEns=!state.showEns;$('#tEns').setAttribute('aria-pressed',state.showEns);}
+        else state.visible[m.id]=!state.visible[m.id];
+        row.classList.toggle('off', isEns?!state.showEns:!state.visible[m.id]); renderMain(); };
+      row.onclick=toggle; row.onkeydown=e=>{if(e.key===' '||e.key==='Enter'){e.preventDefault();toggle();}};
+      list.appendChild(row);
+    });
+  }
+
+  function renderKPIs(){
+    const ms=reg().models, n=reg().hours.length;
+    const ens=ensembleModel();
+    const ref = ens? ens.p50 : reg().hours.map((_,h)=>{const v=ms.map(m=>m.p50[h]).filter(x=>x!=null);return v.reduce((a,c)=>a+c,0)/v.length;});
+    $('#kAvgLab').textContent = ens? `앙상블 평균 (${ens.id})` : '모델 평균';
+    const valid=ref.filter(v=>v!=null);
+    const avg=valid.reduce((a,c)=>a+c,0)/valid.length;
+    let pk=-1e9,pkH=0,lw=1e9,lwH=0,sp=-1,spH=0;
+    for(let h=0;h<n;h++){ const v=ref[h]; if(v==null)continue;
+      if(v>pk){pk=v;pkH=reg().hours[h];} if(v<lw){lw=v;lwH=reg().hours[h];}
+      const vals=ms.map(m=>m.p50[h]).filter(x=>x!=null); const d=Math.max(...vals)-Math.min(...vals);
+      if(d>sp){sp=d;spH=reg().hours[h];} }
+    $('#kAvg').innerHTML=`${avg.toFixed(1)}<small>원/kWh</small>`;
+    $('#kAvgSub').textContent = ens? `검증가중 앙상블 · 백테스트 MAPE ${ens.mape??'—'}%` : '단순 평균';
+    $('#kPeak').innerHTML=`${pk.toFixed(1)}<small>원</small>`; $('#kPeakHr').textContent=`${pkH}시(종료) 예상`;
+    $('#kLow').innerHTML=`${lw.toFixed(1)}<small>원</small>`; $('#kLowHr').textContent=`${lwH}시(종료) 예상`;
+    $('#kSpread').innerHTML=`${sp.toFixed(1)}<small>원</small>`; $('#kSpreadHr').textContent=`${spH}시 · 모델 이견 최대`;
+  }
+
+  function renderAll(){ renderMain(); renderHeat(); renderMape(); renderPanel(); renderKPIs(); }
+
+  $('#tEns').onclick=function(){state.showEns=!state.showEns;this.setAttribute('aria-pressed',state.showEns);renderMain();renderPanel();};
+  $('#tBand').onclick=function(){state.showBand=!state.showBand;this.setAttribute('aria-pressed',state.showBand);renderMain();};
+  $('#tChamp').onclick=function(){state.showChamp=!state.showChamp;this.setAttribute('aria-pressed',state.showChamp);renderMain();};
+  $('#tRibbon').onclick=function(){state.showRibbon=!state.showRibbon;this.setAttribute('aria-pressed',state.showRibbon);renderMain();};
+  window.addEventListener('resize',()=>{mainChart.resize();heatChart.resize();mapeChart.resize();});
+
+  $('#foot').textContent = `SMP 예측 툴 산출물 연결 · 대상일 ${D.meta.target_date} · 발표 ${(D.meta.issue_ts||'').slice(0,16).replace('T',' ')} · 생성 ${(D.meta.generated_at||'').replace('T',' ')}`;
+
+  initVisible(); renderAll();
+})();
+</script>
+</body>
+</html>
