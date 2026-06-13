@@ -179,9 +179,9 @@
   function initVisible(){ state.visible={}; reg().models.forEach(m=>state.visible[m.id]=true); }
 
   // charts
-  const mainChart=echarts.init($('#mainChart'));
-  const heatChart=echarts.init($('#heatChart'));
-  const mapeChart=echarts.init($('#mapeChart'));
+  const mainChart = (typeof echarts !== 'undefined' && window.echarts) ? echarts.init($('#mainChart')) : null;
+  const heatChart = (typeof echarts !== 'undefined' && window.echarts) ? echarts.init($('#heatChart')) : null;
+  const mapeChart = (typeof echarts !== 'undefined' && window.echarts) ? echarts.init($('#mapeChart')) : null;
 
   function bandSeries(){
     const ms=reg().models, n=reg().hours.length, lo=[],rng=[];
@@ -225,7 +225,8 @@
         markArea: i===0?{silent:true,data:ribbonAreas()}:undefined });
     });
 
-    mainChart.setOption({
+    if(mainChart){
+      mainChart.setOption({
       grid:{left:48,right:16,top:14,bottom:30},
       tooltip:{trigger:'axis',backgroundColor:'#0E1116',borderColor:'#28313D',textStyle:{color:'#E8EDF4'},
         formatter:function(ps){ const h=ps[0].axisValue; let rows='';
@@ -241,13 +242,24 @@
         axisLabel:{color:'#8C97A8',fontSize:11,interval:1,formatter:v=>v+'시'}},
       yAxis:{type:'value',scale:true,splitLine:{lineStyle:{color:'rgba(40,49,61,.6)'}},axisLabel:{color:'#8C97A8',fontSize:11,fontFamily:'IBM Plex Mono'}},
       series
-    },true);
+      },true);
+    } else {
+      // 폴백: echarts가 없을 때는 간단한 텍스트로 데이터를 표시
+      const el = document.getElementById('mainChart');
+      el.innerHTML = '';
+      const ms = reg().models;
+      const ul = document.createElement('ul'); ul.style.padding='12px'; ul.style.margin='0'; ul.style.listStyle='none';
+      ms.forEach((m)=>{ const li = document.createElement('li'); li.style.marginBottom='6px';
+        li.innerHTML = `<strong style="color:${colorOf(m,0)}">${m.name_ko}</strong>: ${m.p50.map(v=>v==null?'—':v).join(', ')}`; ul.appendChild(li); });
+      el.appendChild(ul);
+    }
   }
 
   function renderHeat(){
     const ms=reg().models, L=hoursLabels(), pts=[]; let mn=1e9,mx=-1e9;
     ms.forEach((m,r)=>m.p50.forEach((v,h)=>{ if(v==null)return; pts.push([h,r,v]); mn=Math.min(mn,v);mx=Math.max(mx,v); }));
-    heatChart.setOption({
+    if(heatChart){
+      heatChart.setOption({
       grid:{left:120,right:56,top:8,bottom:30},
       tooltip:{backgroundColor:'#0E1116',borderColor:'#28313D',textStyle:{color:'#E8EDF4'},
         formatter:p=>`${ms[p.value[1]].name_ko} · ${L[p.value[0]]}시<br><b>${p.value[2]} ${D.meta.unit}</b>`},
@@ -256,7 +268,10 @@
       visualMap:{min:Math.floor(mn),max:Math.ceil(mx),calculable:true,orient:'vertical',right:6,top:'center',itemHeight:130,textStyle:{color:'#8C97A8',fontSize:10},
         inRange:{color:['#16313A','#1E6F7E','#39C2D6','#F6C445','#FFB22E','#FF6B6B']}},
       series:[{type:'heatmap',data:pts,itemStyle:{borderColor:'#0E1116',borderWidth:1},emphasis:{itemStyle:{borderColor:'#E8EDF4',borderWidth:1}}}]
-    },true);
+      },true);
+    } else {
+      const el = document.getElementById('heatChart'); el.innerHTML = '<div style="padding:12px;color:var(--muted)">히트맵을 렌더하려면 네트워크에서 ECharts 라이브러리를 불러와야 합니다.</div>';
+    }
   }
 
   function renderMape(){
@@ -264,7 +279,8 @@
     const sorted=[...ms].sort((a,b)=>b.mape-a.mape);
     const vals=ms.map(m=>m.mape), mn=Math.min(...vals), mx=Math.max(...vals);
     const col=v=>{const t=(v-mn)/((mx-mn)||1),l=(a,b)=>Math.round(a+(b-a)*t);return`rgb(${l(57,255)},${l(194,107)},${l(214,46)})`;};
-    mapeChart.setOption({
+    if(mapeChart){
+      mapeChart.setOption({
       grid:{left:128,right:52,top:8,bottom:24},
       tooltip:{backgroundColor:'#0E1116',borderColor:'#28313D',textStyle:{color:'#E8EDF4'},
         formatter:p=>{const m=sorted[p.dataIndex];return `${m.name_ko}<br><b>MAPE ${m.mape}%</b><br>RMSE ${m.rmse??'—'} · MAE ${m.mae??'—'}`;}},
@@ -272,7 +288,10 @@
       yAxis:{type:'category',data:sorted.map(m=>m.name_ko),axisLabel:{color:'#C3CCDA',fontSize:11},axisLine:{show:false},axisTick:{show:false}},
       series:[{type:'bar',barWidth:'58%',data:sorted.map(m=>({value:m.mape,itemStyle:{color:col(m.mape),borderRadius:[0,5,5,0]}})),
         label:{show:true,position:'right',color:'#C3CCDA',fontFamily:'IBM Plex Mono',fontSize:11,formatter:'{c}%'}}]
-    },true);
+      },true);
+    } else {
+      const el = document.getElementById('mapeChart'); el.innerHTML = '<div style="padding:12px;color:var(--muted)">MAPE 차트를 렌더하려면 네트워크에서 ECharts 라이브러리를 불러와야 합니다.</div>';
+    }
   }
 
   function renderPanel(){
@@ -327,7 +346,7 @@
   $('#tBand').onclick=function(){state.showBand=!state.showBand;this.setAttribute('aria-pressed',state.showBand);renderMain();};
   $('#tChamp').onclick=function(){state.showChamp=!state.showChamp;this.setAttribute('aria-pressed',state.showChamp);renderMain();};
   $('#tRibbon').onclick=function(){state.showRibbon=!state.showRibbon;this.setAttribute('aria-pressed',state.showRibbon);renderMain();};
-  window.addEventListener('resize',()=>{mainChart.resize();heatChart.resize();mapeChart.resize();});
+  window.addEventListener('resize',()=>{ if(mainChart) mainChart.resize(); if(heatChart) heatChart.resize(); if(mapeChart) mapeChart.resize(); });
 
   $('#foot').textContent = `SMP 예측 툴 산출물 연결 · 대상일 ${D.meta.target_date} · 발표 ${(D.meta.issue_ts||'').slice(0,16).replace('T',' ')} · 생성 ${(D.meta.generated_at||'').replace('T',' ')}`;
 
