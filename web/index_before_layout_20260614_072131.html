@@ -27,7 +27,7 @@
       radial-gradient(900px 500px at 0% 0%, rgba(57,194,214,.05), transparent 55%), var(--bg);
     color:var(--text);font-family:var(--sans);-webkit-font-smoothing:antialiased;line-height:1.4}
   .num{font-family:var(--mono);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
-  .wrap{width:min(1880px,100%);margin:0 auto;padding:20px clamp(14px,2vw,32px) 40px}
+  .wrap{max-width:1320px;margin:0 auto;padding:20px 22px 40px}
   .top{display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding:6px 2px 18px}
   .brand{display:flex;align-items:center;gap:11px;margin-right:auto}
   .spark{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,var(--offpeak),var(--peak));
@@ -51,7 +51,7 @@
   .kpi .meta2{font-size:11.5px;color:var(--muted);margin-top:6px}
   .kpi .meta2 .up{color:var(--peak)} .kpi .meta2 .dn{color:var(--offpeak)}
   .kpi .edge{position:absolute;left:0;top:0;bottom:0;width:3px}
-  .grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,332px);gap:14px}
+  .grid{display:grid;grid-template-columns:1fr 332px;gap:14px}
   .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px}
   .card h2{font-size:13.5px;margin:0 0 2px;font-weight:700;letter-spacing:-.01em}
   .card .desc{font-size:11.5px;color:var(--muted);margin:0 0 10px}
@@ -66,10 +66,6 @@
   .mhead{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
   .mhead .hint{font-size:11px;color:var(--muted)}
   .mlist{display:flex;flex-direction:column;gap:5px;overflow:auto}
-  .model-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:6px;margin:8px 0 12px}
-  .model-strip .m{grid-template-columns:14px minmax(0,1fr) auto;padding:8px 9px}
-  .model-strip .m .avg{display:none}
-  .model-strip .m .nm{font-size:12px}
   .m{display:grid;grid-template-columns:14px 1fr auto auto;gap:10px;align-items:center;padding:9px 10px;border-radius:10px;border:1px solid transparent;cursor:pointer;background:var(--panel-2)}
   .m:hover{border-color:var(--line)} .m.off{opacity:.4}
   .m .sw{width:11px;height:11px;border-radius:3px}
@@ -97,8 +93,7 @@
   .ttip .tr{display:flex;justify-content:space-between;gap:18px;line-height:1.6}
   .ttip .tr b{font-family:var(--mono);font-variant-numeric:tabular-nums}
   .banner{display:none;background:rgba(255,107,107,.1);border:1px solid rgba(255,107,107,.4);color:#FFC9C9;padding:12px 16px;border-radius:12px;font-size:12.5px;margin-bottom:14px}
-  @media (min-width:1500px){#mainChart{height:500px}#btChart{height:560px!important}#dailyScoreChart{height:360px!important}}
-  @media (max-width:1000px){.kpis{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:1fr}.row2{grid-template-columns:1fr}#mainChart{height:360px}.model-strip{grid-template-columns:1fr}}
+  @media (max-width:1000px){.kpis{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:1fr}.row2{grid-template-columns:1fr}#mainChart{height:360px}}
   @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
   :focus-visible{outline:2px solid var(--peak);outline-offset:2px;border-radius:6px}
 </style>
@@ -171,7 +166,6 @@
       <h2>실측 SMP 대비 모델 예측 (백테스트 <span id="btTitle">2026-05</span>)</h2>
       <p class="desc">굵은 흰 선 = <b>실제 SMP</b>(기준선). 각 색선 = 모델 예측(p50). 두 선이 가까울수록 정확합니다. 아래 슬라이더로 기간을 좁혀 볼 수 있습니다. x축은 일자·시간대(hour-ending).</p>
       <div class="chart-tools" id="btTools"></div>
-      <div class="model-strip" id="btModelList"></div>
       <div id="btChart" style="width:100%;height:460px"></div>
     </section>
     <section class="card" style="margin-top:14px">
@@ -181,8 +175,8 @@
       <div class="table-wrap" style="margin-top:10px"><table id="dailyScoreTable"></table></div>
     </section>
     <div class="row2">
+      <section class="card"><h2>모델</h2><p class="desc">클릭하면 곡선 표시/숨김 · 전월 기준 MAPE</p><div class="mlist" id="btModelList"></div></section>
       <section class="card"><h2 id="btMapeTitle">전월 오차 (MAPE)</h2><p class="desc" id="btMapeDesc">실측 대비 모델별 전월 평균 오차. 짧을수록(시안) 정확.</p><div id="btMapeChart" style="width:100%;height:300px"></div></section>
-      <section class="card"><h2>표시 모델 안내</h2><p class="desc">모델 선택은 검증 차트 상단에서 바로 조정합니다. 기본 표시 모델은 챔피언과 앙상블이며, 필요한 모델을 클릭해 추가 비교할 수 있습니다.</p><div class="legend-foot">상단 모델 칩의 수치는 전월 기준 MAPE입니다. 낮을수록 실측에 가까웠습니다.</div></section>
     </div>
   </section><!-- /view-backtest -->
 
