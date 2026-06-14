@@ -78,6 +78,15 @@
   .legend-foot{font-size:10.5px;color:var(--muted);margin-top:10px;line-height:1.6}
   .pill{font-family:var(--mono);font-size:11px;padding:2px 7px;border-radius:6px;background:var(--panel-2);border:1px solid var(--line)}
   .row2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
+  .table-wrap{overflow:auto;border:1px solid var(--line);border-radius:10px;background:rgba(14,17,22,.24)}
+  table{width:100%;border-collapse:collapse;font-size:11.5px;min-width:760px}
+  th,td{padding:8px 9px;border-bottom:1px solid rgba(40,49,61,.72);text-align:right;white-space:nowrap}
+  th{position:sticky;top:0;background:var(--panel-2);color:#C3CCDA;font-size:10.5px;font-weight:700;z-index:1}
+  td:first-child,th:first-child{text-align:left;position:sticky;left:0;background:var(--panel-2);z-index:2}
+  tbody tr:hover td{background:rgba(57,194,214,.06)}
+  .cell-ens{color:var(--ensemble);font-weight:700}
+  .cell-champ{color:var(--champ);font-weight:700}
+  .score-good{color:var(--good);font-weight:700}.score-warn{color:var(--peak);font-weight:700}.score-bad{color:var(--bad);font-weight:700}
   .foot{margin-top:22px;font-size:11px;color:var(--muted);text-align:center;line-height:1.7}
   .ttip{font-family:var(--sans);font-size:12px}
   .ttip .th{font-weight:700;margin-bottom:6px}
@@ -145,6 +154,11 @@
     <section class="card"><h2>모델 × 시간대 히트맵</h2><p class="desc">행=모델, 열=시각. 색이 진할수록 고가. 세로로 색이 갈리면 모델 간 이견이 큼.</p><div id="heatChart"></div></section>
     <section class="card"><h2>백테스트 정확도 (MAPE)</h2><p class="desc">모델별 평균 오차. 짧을수록(시안) 정확, 길수록(앰버) 부정확.</p><div id="mapeChart"></div></section>
   </div>
+  <section class="card" style="margin-top:14px">
+    <h2>내일 시간대별 가격표</h2>
+    <p class="desc">모델별 24시간 예측 가격(p50). 앙상블과 챔피언 모델은 색으로 강조했습니다.</p>
+    <div class="table-wrap"><table id="priceTable"></table></div>
+  </section>
   </section><!-- /view-forecast -->
 
   <section id="view-backtest" hidden>
@@ -153,6 +167,12 @@
       <p class="desc">굵은 흰 선 = <b>실제 SMP</b>(기준선). 각 색선 = 모델 예측(p50). 두 선이 가까울수록 정확합니다. 아래 슬라이더로 기간을 좁혀 볼 수 있습니다. x축은 일자·시간대(hour-ending).</p>
       <div class="chart-tools" id="btTools"></div>
       <div id="btChart" style="width:100%;height:460px"></div>
+    </section>
+    <section class="card" style="margin-top:14px">
+      <h2>일자별 예측 점수</h2>
+      <p class="desc">각 날짜의 실측 대비 예측 정확도. 점수 = 100 - MAPE, 높을수록 좋습니다.</p>
+      <div id="dailyScoreChart" style="width:100%;height:320px"></div>
+      <div class="table-wrap" style="margin-top:10px"><table id="dailyScoreTable"></table></div>
     </section>
     <div class="row2">
       <section class="card"><h2>모델</h2><p class="desc">클릭하면 곡선 표시/숨김 · 실측 대비 MAPE</p><div class="mlist" id="btModelList"></div></section>
@@ -197,11 +217,13 @@
   const RNAME={JEJU:'제주',LAND:'육지'};
   regionKeys.forEach(rk=>{ const b=document.createElement('button');
     b.textContent=RNAME[rk]||rk; b.setAttribute('aria-pressed', rk===state.region);
-    b.onclick=()=>{ state.region=rk; initVisible(); [...seg.children].forEach(x=>x.setAttribute('aria-pressed','false')); b.setAttribute('aria-pressed','true'); renderAll(); };
+    b.onclick=()=>{ state.region=rk; initVisible(); [...seg.children].forEach(x=>x.setAttribute('aria-pressed','false')); b.setAttribute('aria-pressed','true'); renderAll(); if(btState.inited){btState.region=rk; btState.visible={}; renderBt();} };
     seg.appendChild(b);
   });
 
   function initVisible(){ state.visible={}; reg().models.forEach(m=>state.visible[m.id]=true); }
+  function fmt(v,d=1){ return v==null||Number.isNaN(v)?'—':Number(v).toFixed(d); }
+  function scoreClass(v){ return v==null?'':(v>=92?'score-good':v>=88?'score-warn':'score-bad'); }
 
   // charts
   const mainChart=echarts.init($('#mainChart'));
@@ -244,7 +266,7 @@
       const isEns=m.role==='ensemble';
       series.push({ name:m.name_ko, type:'line', smooth:true, symbol:'none', data:m.p50,
         lineStyle:{ width:isEns?3.4:(m.role==='champion'?2.4:1.6), color:colorOf(m,i),
-          opacity: isEns?(state.showEns?1:0):(state.visible[m.id]?.92:0),
+          opacity: isEns?(state.showEns?1:0):(state.visible[m.id] ? .92 : 0),
           shadowBlur:isEns?10:0, shadowColor:'rgba(255,231,168,.4)'},
         emphasis:{lineStyle:{width:isEns?4:3}}, z:isEns?6:(m.role==='champion'?5:3),
         markArea: i===0?{silent:true,data:ribbonAreas()}:undefined });
@@ -346,7 +368,25 @@
     $('#kSpread').innerHTML=`${sp.toFixed(1)}<small>원</small>`; $('#kSpreadHr').textContent=`${spH}시 · 모델 이견 최대`;
   }
 
-  function renderAll(){ renderMain(); renderHeat(); renderMape(); renderPanel(); renderKPIs(); }
+  function renderPriceTable(){
+    const table=$('#priceTable'), r=reg(), ms=r.models;
+    const head=`<thead><tr><th>시간</th>${ms.map(m=>{
+      const cls=m.role==='ensemble'?'cell-ens':m.role==='champion'?'cell-champ':'';
+      return `<th class="${cls}">${m.name_ko}</th>`;
+    }).join('')}<th>모델 최저</th><th>모델 최고</th></tr></thead>`;
+    const body=r.hours.map((h,idx)=>{
+      const vals=ms.map(m=>m.p50[idx]).filter(v=>v!=null);
+      const lo=vals.length?Math.min(...vals):null, hi=vals.length?Math.max(...vals):null;
+      const cells=ms.map(m=>{
+        const cls=m.role==='ensemble'?'cell-ens':m.role==='champion'?'cell-champ':'';
+        return `<td class="num ${cls}">${fmt(m.p50[idx])}</td>`;
+      }).join('');
+      return `<tr><td>${h}시</td>${cells}<td class="num">${fmt(lo)}</td><td class="num">${fmt(hi)}</td></tr>`;
+    }).join('');
+    table.innerHTML=head+`<tbody>${body}</tbody>`;
+  }
+
+  function renderAll(){ renderMain(); renderHeat(); renderMape(); renderPanel(); renderKPIs(); renderPriceTable(); }
 
   $('#tEns').onclick=function(){state.showEns=!state.showEns;this.setAttribute('aria-pressed',state.showEns);renderMain();renderPanel();};
   $('#tBand').onclick=function(){state.showBand=!state.showBand;this.setAttribute('aria-pressed',state.showBand);renderMain();};
@@ -357,8 +397,28 @@
   $('#foot').textContent = `SMP 예측 툴 산출물 연결 · 대상일 ${D.meta.target_date} · 발표 ${(D.meta.issue_ts||'').slice(0,16).replace('T',' ')} · 생성 ${(D.meta.generated_at||'').replace('T',' ')}`;
 
   // ===== 검증(백테스트) 탭 =====
-  let btChart, btMape, btState={region:null, visible:{}, inited:false};
+  let btChart, btMape, dailyScoreChart, btState={region:null, visible:{}, inited:false};
   function btReg(){ const b=D.backtest||{}; return b[btState.region]||b[Object.keys(b)[0]]; }
+  function dayKey(label){ return String(label||'').slice(0,5); }
+  function dailyScores(){
+    const rg=btReg(); if(!rg) return [];
+    const days=[...new Set((rg.timestamps||[]).map(dayKey))];
+    return days.map(day=>{
+      const idxs=rg.timestamps.map((t,i)=>dayKey(t)===day?i:-1).filter(i=>i>=0);
+      const actualVals=idxs.map(i=>rg.actual[i]).filter(v=>v!=null);
+      const actualAvg=actualVals.length?actualVals.reduce((a,c)=>a+c,0)/actualVals.length:null;
+      const modelRows=(rg.models||[]).map(m=>{
+        const pairs=idxs.map(i=>({a:rg.actual[i],p:m.p50[i]})).filter(x=>x.a!=null&&x.p!=null&&Math.abs(x.a)>1);
+        const mape=pairs.length?pairs.reduce((a,x)=>a+Math.abs((x.p-x.a)/x.a),0)/pairs.length*100:null;
+        const mae=pairs.length?pairs.reduce((a,x)=>a+Math.abs(x.p-x.a),0)/pairs.length:null;
+        return {id:m.id,name_ko:m.name_ko,role:m.role,mape:mape==null?null:+mape.toFixed(2),mae:mae==null?null:+mae.toFixed(2),score:mape==null?null:+Math.max(0,100-mape).toFixed(1)};
+      });
+      const best=modelRows.filter(x=>x.score!=null).sort((a,b)=>b.score-a.score)[0]||{};
+      const ens=modelRows.find(x=>x.role==='ensemble')||{};
+      const champ=modelRows.find(x=>x.role==='champion')||{};
+      return {day,actualAvg:actualAvg==null?null:+actualAvg.toFixed(1),models:modelRows,best,ens,champ};
+    });
+  }
 
   function buildBtTools(){
     const rg=btReg(); if(!rg) return;
@@ -424,7 +484,7 @@
         <span class="avg num"></span>
         <span class="mape num" style="color:${mc}">${mp==null?'—':mp+'%'}</span>`;
       const toggle=()=>{ btState.visible[m.id]=!btState.visible[m.id];
-        row.classList.toggle('off',!btState.visible[m.id]); renderBtChart(); };
+        row.classList.toggle('off',!btState.visible[m.id]); renderBtChart(); renderDailyScores(); };
       row.onclick=toggle; row.onkeydown=e=>{if(e.key===' '||e.key==='Enter'){e.preventDefault();toggle();}};
       list.appendChild(row);
     });
@@ -446,14 +506,41 @@
         label:{show:true,position:'right',color:'#C3CCDA',fontFamily:'IBM Plex Mono',fontSize:11,formatter:'{c}%'}}]},true);
   }
 
-  function renderBt(){ buildBtTools(); renderBtChart(); renderBtPanel(); renderBtMape(); }
+  function renderDailyScores(){
+    const rows=dailyScores(); if(!rows.length) return;
+    const rg=btReg(), visibleIds=Object.keys(btState.visible).filter(id=>btState.visible[id]);
+    const models=(rg.models||[]).filter(m=>visibleIds.includes(m.id));
+    const series=models.map((m,i)=>({
+      name:m.name_ko,type:'line',smooth:true,symbol:'circle',symbolSize:4,
+      data:rows.map(r=>(r.models.find(x=>x.id===m.id)||{}).score),
+      lineStyle:{width:m.role==='ensemble'?2.8:m.role==='champion'?2.3:1.4,color:colorOf(m,i)},
+      itemStyle:{color:colorOf(m,i)}
+    }));
+    dailyScoreChart.setOption({
+      grid:{left:42,right:16,top:16,bottom:34},
+      tooltip:{trigger:'axis',backgroundColor:'#0E1116',borderColor:'#28313D',textStyle:{color:'#E8EDF4'},
+        formatter:function(ps){ let out=`<div class="ttip"><div class="th">${ps[0].axisValue} 일자별 점수</div>`;
+          ps.forEach(p=>{ if(p.data!=null) out+=`<div class="tr"><span style="color:${p.color}">● ${p.seriesName}</span><b>${p.data}점</b></div>`; });
+          return out+'</div>'; }},
+      xAxis:{type:'category',data:rows.map(r=>r.day),axisLine:{lineStyle:{color:'#28313D'}},axisTick:{show:false},axisLabel:{color:'#8C97A8',fontSize:10}},
+      yAxis:{type:'value',min:70,max:100,splitLine:{lineStyle:{color:'rgba(40,49,61,.6)'}},axisLabel:{color:'#8C97A8',fontSize:10,formatter:'{value}점'}},
+      series
+    },true);
+    $('#dailyScoreTable').innerHTML=`<thead><tr><th>일자</th><th>실측 평균</th><th>최고 모델</th><th>최고 점수</th><th>앙상블</th><th>챔피언</th></tr></thead><tbody>`+
+      rows.map(r=>`<tr><td>${r.day}</td><td class="num">${fmt(r.actualAvg)}</td><td>${r.best.name_ko||'—'}</td>
+        <td class="num ${scoreClass(r.best.score)}">${fmt(r.best.score)}점</td>
+        <td class="num ${scoreClass(r.ens.score)}">${fmt(r.ens.score)}점</td>
+        <td class="num ${scoreClass(r.champ.score)}">${fmt(r.champ.score)}점</td></tr>`).join('')+'</tbody>';
+  }
+
+  function renderBt(){ buildBtTools(); renderBtChart(); renderBtPanel(); renderBtMape(); renderDailyScores(); }
 
   function initBacktest(){
     if(btState.inited) return;
     const b=D.backtest||{};
     if(!Object.keys(b).length){ $('#view-backtest').innerHTML='<section class="card"><p class="desc">백테스트 데이터가 없습니다. build_dashboard_data.py 에 --backtest 를 지정해 data.js 를 다시 생성하세요.</p></section>'; btState.inited=true; return; }
     btState.region=Object.keys(b).includes('JEJU')?'JEJU':Object.keys(b)[0];
-    btChart=echarts.init($('#btChart')); btMape=echarts.init($('#btMapeChart'));
+    btChart=echarts.init($('#btChart')); btMape=echarts.init($('#btMapeChart')); dailyScoreChart=echarts.init($('#dailyScoreChart'));
     $('#btTitle').textContent=(D.meta.backtest_period||'').replace('SMP_','').replace('_backtest','').replace('_','-');
     btState.inited=true; renderBt();
   }
@@ -465,11 +552,11 @@
       $('#viewSeg').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed', x===b));
       $('#view-forecast').hidden = v!=='forecast';
       $('#view-backtest').hidden = v!=='backtest';
-      if(v==='backtest'){ initBacktest(); setTimeout(()=>{btChart&&btChart.resize();btMape&&btMape.resize();},30); }
+      if(v==='backtest'){ initBacktest(); setTimeout(()=>{btChart&&btChart.resize();btMape&&btMape.resize();dailyScoreChart&&dailyScoreChart.resize();},30); }
       else setTimeout(()=>{mainChart.resize();heatChart.resize();mapeChart.resize();},30);
     };
   });
-  window.addEventListener('resize',()=>{btChart&&btChart.resize();btMape&&btMape.resize();});
+  window.addEventListener('resize',()=>{btChart&&btChart.resize();btMape&&btMape.resize();dailyScoreChart&&dailyScoreChart.resize();});
 
   initVisible(); renderAll();
 })();
