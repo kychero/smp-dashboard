@@ -3,7 +3,7 @@
 
 입력:
   - 예측 엑셀: all_model_forecasts / summary 시트
-  - 백테스트 엑셀: metrics 시트 (모델별 MAPE 등)
+  - 백테스트 엑셀: metrics 시트(모델별 MAPE 등), predictions 시트(실측/예측 시계열)
 출력:
   - web/data.js  (window.SMP_DATA = {...})  ← index.html 이 <script src>로 로드
 
@@ -33,6 +33,14 @@ def _num(v, nd=2):
         return round(float(v), nd)
     except (TypeError, ValueError):
         return None
+
+
+def _dt_label(v) -> str:
+    if isinstance(v, dt.datetime):
+        return v.strftime("%m-%d %H:%M")
+    if isinstance(v, dt.date):
+        return v.strftime("%m-%d")
+    return str(v)
 
 
 def load_forecast(path: Path) -> dict:
@@ -78,13 +86,48 @@ def load_backtest(path: Path) -> dict:
             "rmse": _num(row.get("rmse")),
             "smape": _num(row.get("smape_pct")),
         }
+
+    predictions: dict = {}
+    if "predictions" in wb.sheetnames:
+        actuals: dict = {}
+        model_values: dict = {}
+        model_names: dict = {}
+        keys_by_region: dict = {}
+        for row in _rows(wb["predictions"]):
+            region, mid = row["region"], row["model_id"]
+            ts = row.get("target_ts_end") or f"{row.get('target_date')} {row.get('hour_end')}"
+            sort_key = ts if isinstance(ts, dt.datetime) else str(ts)
+            key = (sort_key, _dt_label(ts))
+
+            keys_by_region.setdefault(region, set()).add(key)
+            actuals.setdefault(region, {})[key] = _num(row.get("actual"))
+            model_values.setdefault(region, {}).setdefault(mid, {})[key] = _num(row.get("p50"))
+            model_names[(region, mid)] = row.get("model_name") or mid
+
+        for region, key_set in keys_by_region.items():
+            keys = sorted(key_set, key=lambda x: x[0])
+            models = []
+            for mid, values in model_values.get(region, {}).items():
+                models.append({
+                    "id": mid,
+                    "name": model_names.get((region, mid), mid),
+                    "p50": [values.get(k) for k in keys],
+                })
+            predictions[region] = {
+                "timestamps": [label for _, label in keys],
+                "actual": [actuals.get(region, {}).get(k) for k in keys],
+                "models": models,
+            }
     wb.close()
-    return metrics
+    return {"metrics": metrics, "predictions": predictions}
 
 
 def build(forecast: Path, backtest: Path | None, champion: str, risk: str) -> dict:
     f = load_forecast(forecast)
-    bt = load_backtest(backtest) if backtest and backtest.exists() else {}
+    bt = load_backtest(backtest) if backtest and backtest.exists() else {
+        "metrics": {}, "predictions": {}
+    }
+    bt_metrics = bt["metrics"]
 
     regions = {}
     for region, mids in f["order"].items():
@@ -96,7 +139,7 @@ def build(forecast: Path, backtest: Path | None, champion: str, risk: str) -> di
             p10 = [series.get(h, {}).get("p10") for h in hours]
             p90 = [series.get(h, {}).get("p90") for h in hours]
             valid = [v for v in p50 if v is not None]
-            m = bt.get((region, mid), {})
+            m = bt_metrics.get((region, mid), {})
             role = ("champion" if mid == champion else
                     "ensemble" if mid == risk else "model")
             models.append({
@@ -123,7 +166,31 @@ def build(forecast: Path, backtest: Path | None, champion: str, risk: str) -> di
             "backtest_period": backtest.stem if backtest else "",
         },
         "regions": regions,
+        "backtest": _build_backtest_payload(bt["predictions"], f["ko"], champion, risk),
     }
+
+
+def _build_backtest_payload(predictions: dict, ko: dict, champion: str, risk: str) -> dict:
+    out = {}
+    for region, data in predictions.items():
+        models = []
+        for model in data.get("models", []):
+            mid = model["id"]
+            role = ("champion" if mid == champion else
+                    "ensemble" if mid == risk else "model")
+            models.append({
+                "id": mid,
+                "name_ko": ko.get((region, mid), {}).get("name_ko", mid),
+                "name": model.get("name") or ko.get((region, mid), {}).get("name", mid),
+                "role": role,
+                "p50": model.get("p50", []),
+            })
+        out[region] = {
+            "timestamps": data.get("timestamps", []),
+            "actual": data.get("actual", []),
+            "models": models,
+        }
+    return out
 
 
 def main():
