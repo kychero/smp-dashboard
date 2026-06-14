@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import json
 import math
 import re
@@ -38,10 +39,10 @@ OUT = ROOT / "processed"
 OUT.mkdir(parents=True, exist_ok=True)
 RESEARCH_PROFILE_PATH = ROOT / "source_docs" / "mdl08_research_smp_profile.csv"
 
-TRAIN_START = pd.Timestamp("2023-05-01")
+TRAIN_START = pd.Timestamp("2021-06-15")
 VALID_START = pd.Timestamp("2026-04-01")
 TEST_START = pd.Timestamp("2026-05-01")
-TEST_END_EXCL = pd.Timestamp("2026-06-01")
+TEST_END_EXCL = pd.Timestamp("2026-06-14")
 QUANTILES = [0.10, 0.25, 0.50, 0.75, 0.90]
 
 OPTIONAL_INPUT_FEATURES = [
@@ -359,11 +360,17 @@ def active_features(df: pd.DataFrame) -> list[str]:
     return cols
 
 
-def split_periods(region_df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+def split_periods(
+    region_df: pd.DataFrame,
+    train_start: pd.Timestamp = TRAIN_START,
+    valid_start: pd.Timestamp = VALID_START,
+    test_start: pd.Timestamp = TEST_START,
+    test_end_excl: pd.Timestamp = TEST_END_EXCL,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     usable = region_df.dropna(subset=["smp", "smp_lag_672h", "same_hour_ma_30d_safe"]).copy()
-    train = usable[(usable["target_date"] >= TRAIN_START) & (usable["target_date"] < VALID_START)]
-    valid = usable[(usable["target_date"] >= VALID_START) & (usable["target_date"] < TEST_START)]
-    test = usable[(usable["target_date"] >= TEST_START) & (usable["target_date"] < TEST_END_EXCL)]
+    train = usable[(usable["target_date"] >= train_start) & (usable["target_date"] < valid_start)]
+    valid = usable[(usable["target_date"] >= valid_start) & (usable["target_date"] < test_start)]
+    test = usable[(usable["target_date"] >= test_start) & (usable["target_date"] < test_end_excl)]
     return train, valid, test
 
 
@@ -804,8 +811,19 @@ def markdown_table(df: pd.DataFrame, floatfmt: str = ".3f") -> str:
     return "\n".join([header, sep, *body])
 
 
-def run_region(region_df: pd.DataFrame) -> tuple[list[ModelResult], pd.DataFrame]:
-    train0, valid, test = split_periods(region_df)
+def run_region(
+    region_df: pd.DataFrame,
+    train_start: pd.Timestamp = TRAIN_START,
+    valid_start: pd.Timestamp = VALID_START,
+    test_start: pd.Timestamp = TEST_START,
+    test_end_excl: pd.Timestamp = TEST_END_EXCL,
+) -> tuple[list[ModelResult], pd.DataFrame]:
+    train0, valid, test = split_periods(region_df, train_start, valid_start, test_start, test_end_excl)
+    if train0.empty or valid.empty or test.empty:
+        raise ValueError(
+            f"Empty split for {region_df['region'].iloc[0]}: "
+            f"train={len(train0)}, valid={len(valid)}, test={len(test)}"
+        )
     final_train = pd.concat([train0, valid], ignore_index=True)
 
     # We fit validation models on pre-April data for ensemble weights. Final test
@@ -817,8 +835,9 @@ def run_region(region_df: pd.DataFrame) -> tuple[list[ModelResult], pd.DataFrame
         mdl04(train0, valid, test),
         mdl05(train0, valid, test),
         mdl06(train0, valid, test),
-        mdl08(train0, valid, test),
     ]
+    if RESEARCH_PROFILE_PATH.exists():
+        val_results.append(mdl08(train0, valid, test))
 
     test_results = [
         mdl01(final_train, valid, test),
@@ -827,8 +846,9 @@ def run_region(region_df: pd.DataFrame) -> tuple[list[ModelResult], pd.DataFrame
         mdl04(final_train, valid, test),
         mdl05(final_train, valid, test),
         mdl06(final_train, valid, test),
-        mdl08(final_train, valid, test),
     ]
+    if RESEARCH_PROFILE_PATH.exists():
+        test_results.append(mdl08(final_train, valid, test))
 
     combined = []
     for vr, tr in zip(val_results, test_results):
@@ -841,19 +861,18 @@ def run_region(region_df: pd.DataFrame) -> tuple[list[ModelResult], pd.DataFrame
     return combined, weights
 
 
-def write_report(metrics: pd.DataFrame, weights: pd.DataFrame, notes: dict[str, object]) -> None:
-    report = ROOT / "SMP_2026_05_backtest_report.md"
+def write_report(metrics: pd.DataFrame, weights: pd.DataFrame, notes: dict[str, object], report: Path) -> None:
     best_rows = metrics.sort_values(["region", "mae"]).groupby("region").head(3)
 
     lines = [
-        "# SMP 2026년 5월 시간대별 예측 사전검증",
+        f"# SMP {notes['test_period_label']} 시간대별 예측 사전검증",
         "",
         "## 데이터와 전제",
         f"- 원천 SMP: EPSIS 시간별SMP AJAX, 육지/제주, {notes['raw_period']}",
-        "- 학습: 2023-05-01~2026-04-30, 앙상블 가중치 검증: 2026-04-01~2026-04-30, 테스트: 2026-05-01~2026-05-31",
+        f"- 학습: {notes['train_period']}, 앙상블 가중치 검증: {notes['validation_period']}, 테스트: {notes['test_period']}",
         "- 시간 표기는 EPSIS 원천과 같은 01~24시 종료시각 기준이며, CSV에는 0~23 보조 인덱스도 포함했습니다.",
         "- D+1 06:00/09:30 발행 누수를 피하려고 전일 같은 시간(lag24)은 사용하지 않고 최소 48시간 이상 과거 lag/rolling 피처만 사용했습니다.",
-        "- 공공데이터포털 DS-01 API는 serviceKey가 필요해 수요예측 입력(F2)은 이번 실행에서 제외했습니다. 공개 파일데이터 수요/태양광은 샘플 데이터라 3년 학습 피처로 쓰지 않았습니다.",
+        "- 외부 피처는 `external_features.csv`에서 병합했습니다. EPSIS 현재부하 기반 수요, Open-Meteo 기상, 일사량 기반 태양광 proxy를 포함합니다.",
         "",
         "## 모델 구현",
         "- MDL-01: 설계서 계절 나이브 공식(0.5*lag168 + 0.5*최근 7일 동시간 평균).",
@@ -862,8 +881,8 @@ def write_report(metrics: pd.DataFrame, weights: pd.DataFrame, notes: dict[str, 
         "- MDL-04: LightGBM MAE 점예측.",
         "- MDL-05: LightGBM quantile 5개 헤드(P10/P25/P50/P75/P90).",
         "- MDL-06: TFT 사전검증 대체로 lag sequence MLP.",
-        "- MDL-07: 2026년 4월 검증 MAE 역수 가중 앙상블. MDL-08도 가중 후보에 포함합니다.",
-        "- MDL-08: Research/SMP Model xlsb의 `기준연도SMP` 월별 24시간 프로파일을 대상일 월/시간에 매핑한 외부 연구모델 벤치마크.",
+            "- MDL-07: 검증 기간 MAE 역수 가중 앙상블.",
+            "- MDL-08: 연구 프로파일 파일이 있을 때만 외부 연구모델 벤치마크로 포함합니다.",
         "",
         "## 상위 결과(MAE 기준)",
         markdown_table(
@@ -901,34 +920,86 @@ def write_report(metrics: pd.DataFrame, weights: pd.DataFrame, notes: dict[str, 
         [
             "",
             "## 산출 파일",
-            "- `processed/smp_hourly_actuals_20230501_20260531.csv`",
-            "- `processed/model_predictions_2026_05.csv`",
-            "- `processed/model_metrics_2026_05.csv`",
-            "- `processed/hourly_metrics_2026_05.csv`",
-            "- `SMP_2026_05_backtest.xlsx`",
+            f"- `{notes['actuals_csv']}`",
+            f"- `{notes['features_csv']}`",
+            f"- `{notes['predictions_csv']}`",
+            f"- `{notes['metrics_csv']}`",
+            f"- `{notes['hourly_metrics_csv']}`",
+            f"- `{notes['xlsx']}`",
         ]
     )
     report.write_text("\n".join(lines), encoding="utf-8")
 
 
+def load_actuals_from_csv(path: Path) -> pd.DataFrame:
+    df = pd.read_csv(path, parse_dates=["target_date", "target_ts_end"])
+    df["hour_end"] = pd.to_numeric(df["hour_end"], errors="raise").astype(int)
+    if "hour_index_0_23" not in df.columns:
+        df["hour_index_0_23"] = df["hour_end"] - 1
+    return df.sort_values(["region", "target_date", "hour_end"]).reset_index(drop=True)
+
+
+def load_external_features(path: Path | None) -> pd.DataFrame:
+    if not path or not path.exists():
+        return pd.DataFrame()
+    ext = pd.read_csv(path)
+    ext["target_date"] = pd.to_datetime(ext["target_date"])
+    ext["hour_end"] = pd.to_numeric(ext["hour_end"], errors="raise").astype(int)
+    keep = ["region", "target_date", "hour_end"] + [c for c in OPTIONAL_INPUT_FEATURES if c in ext.columns]
+    return ext[keep].drop_duplicates(["region", "target_date", "hour_end"], keep="last")
+
+
+def merge_external_features(actuals: pd.DataFrame, external: pd.DataFrame) -> pd.DataFrame:
+    if external.empty:
+        return actuals
+    return actuals.merge(external, on=["region", "target_date", "hour_end"], how="left")
+
+
+def output_tag(test_start: pd.Timestamp, test_end_excl: pd.Timestamp) -> str:
+    end_incl = test_end_excl - pd.Timedelta(days=1)
+    return f"{test_start:%Y_%m}_{end_incl:%Y_%m_%d}"
+
+
 def main() -> None:
     warnings.filterwarnings("ignore")
-    land_path = RAW / "epsis_smp_land_20230501_20260531.js"
-    jeju_path = RAW / "epsis_smp_jeju_20230501_20260531.js"
-    actuals = pd.concat(
-        [parse_epsis_js(land_path, "LAND"), parse_epsis_js(jeju_path, "JEJU")],
-        ignore_index=True,
-    )
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--actuals-csv", type=Path, default=OUT / "smp_actuals_cache.csv")
+    ap.add_argument("--external-features", type=Path, default=Path("/home/opc/smp/data/external_features.csv"))
+    ap.add_argument("--train-start", default=TRAIN_START.date().isoformat())
+    ap.add_argument("--valid-start", default=VALID_START.date().isoformat())
+    ap.add_argument("--test-start", default=TEST_START.date().isoformat())
+    ap.add_argument("--test-end", default=(TEST_END_EXCL - pd.Timedelta(days=1)).date().isoformat(),
+                    help="Inclusive YYYY-MM-DD")
+    ap.add_argument("--out-dir", type=Path, default=OUT)
+    ap.add_argument("--xlsx", type=Path, default=None)
+    args = ap.parse_args()
+
+    train_start = pd.Timestamp(args.train_start)
+    valid_start = pd.Timestamp(args.valid_start)
+    test_start = pd.Timestamp(args.test_start)
+    test_end_excl = pd.Timestamp(args.test_end) + pd.Timedelta(days=1)
+    tag = output_tag(test_start, test_end_excl)
+    args.out_dir.mkdir(parents=True, exist_ok=True)
+
+    actuals = load_actuals_from_csv(args.actuals_csv)
     actuals = actuals.sort_values(["region", "target_date", "hour_end"]).reset_index(drop=True)
-    actuals.to_csv(OUT / "smp_hourly_actuals_20230501_20260531.csv", index=False, encoding="utf-8-sig")
+    actuals = actuals[
+        (actuals["target_date"] >= train_start)
+        & (actuals["target_date"] < test_end_excl)
+    ].copy()
+    external = load_external_features(args.external_features)
+    actuals = merge_external_features(actuals, external)
+    actuals_csv = args.out_dir / f"smp_hourly_actuals_{tag}.csv"
+    actuals.to_csv(actuals_csv, index=False, encoding="utf-8-sig")
 
     features = build_features(actuals)
-    features.to_csv(OUT / "smp_feature_frame_20230501_20260531.csv", index=False, encoding="utf-8-sig")
+    features_csv = args.out_dir / f"smp_feature_frame_{tag}.csv"
+    features.to_csv(features_csv, index=False, encoding="utf-8-sig")
 
     all_results: list[ModelResult] = []
     weight_frames: list[pd.DataFrame] = []
     for region, region_df in features.groupby("region", sort=False):
-        results, weights = run_region(region_df)
+        results, weights = run_region(region_df, train_start, valid_start, test_start, test_end_excl)
         all_results.extend(results)
         if not weights.empty:
             weight_frames.append(weights)
@@ -937,46 +1008,58 @@ def main() -> None:
     preds["error"] = preds["p50"] - preds["actual"]
     preds["abs_error"] = preds["error"].abs()
     preds = preds.sort_values(["region", "model_id", "target_date", "hour_end"])
-    preds.to_csv(OUT / "model_predictions_2026_05.csv", index=False, encoding="utf-8-sig")
+    predictions_csv = args.out_dir / f"model_predictions_{tag}.csv"
+    preds.to_csv(predictions_csv, index=False, encoding="utf-8-sig")
 
     metrics, hourly = compute_metrics(preds)
-    metrics.to_csv(OUT / "model_metrics_2026_05.csv", index=False, encoding="utf-8-sig")
-    hourly.to_csv(OUT / "hourly_metrics_2026_05.csv", index=False, encoding="utf-8-sig")
+    metrics_csv = args.out_dir / f"model_metrics_{tag}.csv"
+    hourly_metrics_csv = args.out_dir / f"hourly_metrics_{tag}.csv"
+    metrics.to_csv(metrics_csv, index=False, encoding="utf-8-sig")
+    hourly.to_csv(hourly_metrics_csv, index=False, encoding="utf-8-sig")
 
     weights = pd.concat(weight_frames, ignore_index=True) if weight_frames else pd.DataFrame()
     if not weights.empty:
-        weights.to_csv(OUT / "ensemble_weights_from_2026_04.csv", index=False, encoding="utf-8-sig")
+        weights.to_csv(args.out_dir / f"ensemble_weights_{tag}.csv", index=False, encoding="utf-8-sig")
 
     notes = {
-        "raw_period": "2023-05-01~2026-05-31",
+        "raw_period": f"{actuals['target_date'].min().date()}~{actuals['target_date'].max().date()}",
+        "train_period": f"{train_start.date()}~{(valid_start - pd.Timedelta(days=1)).date()}",
+        "validation_period": f"{valid_start.date()}~{(test_start - pd.Timedelta(days=1)).date()}",
+        "test_period": f"{test_start.date()}~{(test_end_excl - pd.Timedelta(days=1)).date()}",
+        "test_period_label": f"{test_start:%Y년 %m월}~{(test_end_excl - pd.Timedelta(days=1)):%Y년 %m월 %d일}",
         "lightgbm_available": HAS_LIGHTGBM,
         "n_actual_rows": int(len(actuals)),
         "regions": sorted(actuals["region"].unique().tolist()),
         "mdl08_profile": str(RESEARCH_PROFILE_PATH),
+        "external_features": str(args.external_features),
+        "predictions_csv": str(predictions_csv),
+        "metrics_csv": str(metrics_csv),
+        "hourly_metrics_csv": str(hourly_metrics_csv),
         "source_urls": {
             "epsis_hourly_smp": "https://epsis.kpx.or.kr/epsisnew/selectEkmaSmpShdChart.do",
             "data_go_smp_demand_api": "https://www.data.go.kr/data/15131225/openapi.do",
         },
         "limitations": [
-            "DS-01 demand forecast API requires a public-data serviceKey.",
-            "Public demand and PPA solar file downloads are samples, not 3-year training inputs.",
+            "EPSIS current load is actual/near-real-time demand, not an official day-ahead demand forecast.",
             "MDL-03 and MDL-06 are prototype proxies because netload/fuel and TFT runtime are unavailable.",
         ],
     }
-    (OUT / "validation_summary.json").write_text(
+    xlsx = args.xlsx or ROOT / f"SMP_{tag}_backtest.xlsx"
+    notes["xlsx"] = str(xlsx)
+    notes["actuals_csv"] = str(actuals_csv)
+    notes["features_csv"] = str(features_csv)
+    (args.out_dir / f"validation_summary_{tag}.json").write_text(
         json.dumps(notes, ensure_ascii=False, indent=2), encoding="utf-8"
     )
-
-    xlsx = ROOT / "SMP_2026_05_backtest.xlsx"
     with pd.ExcelWriter(xlsx, engine="openpyxl") as writer:
         metrics.to_excel(writer, sheet_name="metrics", index=False)
         hourly.to_excel(writer, sheet_name="hourly_metrics", index=False)
         preds.to_excel(writer, sheet_name="predictions", index=False)
         if not weights.empty:
             weights.to_excel(writer, sheet_name="ensemble_weights", index=False)
-    write_report(metrics, weights, notes)
+    write_report(metrics, weights, notes, ROOT / f"SMP_{tag}_backtest_report.md")
 
-    print(json.dumps({"metrics": str(OUT / "model_metrics_2026_05.csv"), "xlsx": str(xlsx)}, ensure_ascii=False))
+    print(json.dumps({"metrics": str(metrics_csv), "xlsx": str(xlsx)}, ensure_ascii=False))
 
 
 if __name__ == "__main__":
