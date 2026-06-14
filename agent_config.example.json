@@ -14,6 +14,7 @@
   "champion_model_id": "MDL-04",
   "risk_model_id": "MDL-07",
   "fetch_sleep_sec": 0.2,
+  "external_features_path": "C:/path/to/SMP_Daily/external_features.csv",
   "dashboard_enabled": true,
   "dashboard_root": "C:/path/to/SMP_Daily"
 }
