@@ -7,10 +7,7 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
-<script src="./vendor/echarts.min.js"></script>
-<script>
-  window.echarts || document.write('<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"><\/script>');
-</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.1/echarts.min.js"></script>
 <style>
   :root{
     --bg:#0E1116; --panel:#151A21; --panel-2:#1B222B; --line:#28313D;
@@ -38,6 +35,8 @@
   .seg{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:3px}
   .seg button{font-family:var(--sans);font-size:12.5px;color:var(--muted);background:none;border:0;padding:6px 12px;border-radius:7px;cursor:pointer;font-weight:600}
   .seg button[aria-pressed="true"]{background:var(--panel-2);color:var(--text);box-shadow:inset 0 0 0 1px var(--line)}
+  .viewtabs{margin:0 0 16px;display:inline-flex}
+  .viewtabs button{font-size:13px;padding:8px 16px}
   .meta{display:flex;align-items:center;gap:14px;font-size:12px;color:var(--muted);flex-wrap:wrap}
   .meta b{color:var(--text);font-weight:600}
   .dot{width:7px;height:7px;border-radius:50%;background:var(--good);box-shadow:0 0 0 3px rgba(84,214,160,.18)}
@@ -106,6 +105,12 @@
 
   <div class="banner" id="banner"></div>
 
+  <div class="seg viewtabs" id="viewSeg" role="group" aria-label="보기 선택">
+    <button data-view="forecast" aria-pressed="true">내일 예측</button>
+    <button data-view="backtest" aria-pressed="false">검증 · 실측 대비</button>
+  </div>
+
+  <section id="view-forecast">
   <section class="kpis" aria-label="요약 지표">
     <div class="kpi"><div class="edge" style="background:var(--ensemble)"></div><div class="lab" id="kAvgLab">앙상블 평균</div><div class="val num" id="kAvg">—<small>원/kWh</small></div><div class="meta2" id="kAvgSub">—</div></div>
     <div class="kpi"><div class="edge" style="background:var(--peak)"></div><div class="lab">예상 최고가 · 피크</div><div class="val num" id="kPeak">—<small>원</small></div><div class="meta2" id="kPeakHr">—</div></div>
@@ -137,6 +142,20 @@
     <section class="card"><h2>모델 × 시간대 히트맵</h2><p class="desc">행=모델, 열=시각. 색이 진할수록 고가. 세로로 색이 갈리면 모델 간 이견이 큼.</p><div id="heatChart"></div></section>
     <section class="card"><h2>백테스트 정확도 (MAPE)</h2><p class="desc">모델별 평균 오차. 짧을수록(시안) 정확, 길수록(앰버) 부정확.</p><div id="mapeChart"></div></section>
   </div>
+  </section><!-- /view-forecast -->
+
+  <section id="view-backtest" hidden>
+    <section class="card">
+      <h2>실측 SMP 대비 모델 예측 (백테스트 <span id="btTitle">2026-05</span>)</h2>
+      <p class="desc">굵은 흰 선 = <b>실제 SMP</b>(기준선). 각 색선 = 모델 예측(p50). 두 선이 가까울수록 정확합니다. 아래 슬라이더로 기간을 좁혀 볼 수 있습니다. x축은 일자·시간대(hour-ending).</p>
+      <div class="chart-tools" id="btTools"></div>
+      <div id="btChart" style="width:100%;height:460px"></div>
+    </section>
+    <div class="row2">
+      <section class="card"><h2>모델</h2><p class="desc">클릭하면 곡선 표시/숨김 · 실측 대비 MAPE</p><div class="mlist" id="btModelList"></div></section>
+      <section class="card"><h2>백테스트 정확도 (MAPE)</h2><p class="desc">실측 대비 모델별 평균 오차. 짧을수록(시안) 정확.</p><div id="btMapeChart" style="width:100%;height:300px"></div></section>
+    </div>
+  </section><!-- /view-backtest -->
 
   <p class="foot" id="foot">SMP 예측 툴 산출물(all_model_forecasts · backtest metrics)을 연결한 화면입니다.</p>
 </div>
@@ -182,9 +201,9 @@
   function initVisible(){ state.visible={}; reg().models.forEach(m=>state.visible[m.id]=true); }
 
   // charts
-  const mainChart = (typeof echarts !== 'undefined' && window.echarts) ? echarts.init($('#mainChart')) : null;
-  const heatChart = (typeof echarts !== 'undefined' && window.echarts) ? echarts.init($('#heatChart')) : null;
-  const mapeChart = (typeof echarts !== 'undefined' && window.echarts) ? echarts.init($('#mapeChart')) : null;
+  const mainChart=echarts.init($('#mainChart'));
+  const heatChart=echarts.init($('#heatChart'));
+  const mapeChart=echarts.init($('#mapeChart'));
 
   function bandSeries(){
     const ms=reg().models, n=reg().hours.length, lo=[],rng=[];
@@ -228,8 +247,7 @@
         markArea: i===0?{silent:true,data:ribbonAreas()}:undefined });
     });
 
-    if(mainChart){
-      mainChart.setOption({
+    mainChart.setOption({
       grid:{left:48,right:16,top:14,bottom:30},
       tooltip:{trigger:'axis',backgroundColor:'#0E1116',borderColor:'#28313D',textStyle:{color:'#E8EDF4'},
         formatter:function(ps){ const h=ps[0].axisValue; let rows='';
@@ -245,24 +263,13 @@
         axisLabel:{color:'#8C97A8',fontSize:11,interval:1,formatter:v=>v+'시'}},
       yAxis:{type:'value',scale:true,splitLine:{lineStyle:{color:'rgba(40,49,61,.6)'}},axisLabel:{color:'#8C97A8',fontSize:11,fontFamily:'IBM Plex Mono'}},
       series
-      },true);
-    } else {
-      // 폴백: echarts가 없을 때는 간단한 텍스트로 데이터를 표시
-      const el = document.getElementById('mainChart');
-      el.innerHTML = '';
-      const ms = reg().models;
-      const ul = document.createElement('ul'); ul.style.padding='12px'; ul.style.margin='0'; ul.style.listStyle='none';
-      ms.forEach((m)=>{ const li = document.createElement('li'); li.style.marginBottom='6px';
-        li.innerHTML = `<strong style="color:${colorOf(m,0)}">${m.name_ko}</strong>: ${m.p50.map(v=>v==null?'—':v).join(', ')}`; ul.appendChild(li); });
-      el.appendChild(ul);
-    }
+    },true);
   }
 
   function renderHeat(){
     const ms=reg().models, L=hoursLabels(), pts=[]; let mn=1e9,mx=-1e9;
     ms.forEach((m,r)=>m.p50.forEach((v,h)=>{ if(v==null)return; pts.push([h,r,v]); mn=Math.min(mn,v);mx=Math.max(mx,v); }));
-    if(heatChart){
-      heatChart.setOption({
+    heatChart.setOption({
       grid:{left:120,right:56,top:8,bottom:30},
       tooltip:{backgroundColor:'#0E1116',borderColor:'#28313D',textStyle:{color:'#E8EDF4'},
         formatter:p=>`${ms[p.value[1]].name_ko} · ${L[p.value[0]]}시<br><b>${p.value[2]} ${D.meta.unit}</b>`},
@@ -271,10 +278,7 @@
       visualMap:{min:Math.floor(mn),max:Math.ceil(mx),calculable:true,orient:'vertical',right:6,top:'center',itemHeight:130,textStyle:{color:'#8C97A8',fontSize:10},
         inRange:{color:['#16313A','#1E6F7E','#39C2D6','#F6C445','#FFB22E','#FF6B6B']}},
       series:[{type:'heatmap',data:pts,itemStyle:{borderColor:'#0E1116',borderWidth:1},emphasis:{itemStyle:{borderColor:'#E8EDF4',borderWidth:1}}}]
-      },true);
-    } else {
-      const el = document.getElementById('heatChart'); el.innerHTML = '<div style="padding:12px;color:var(--muted)">히트맵을 렌더하려면 네트워크에서 ECharts 라이브러리를 불러와야 합니다.</div>';
-    }
+    },true);
   }
 
   function renderMape(){
@@ -282,8 +286,7 @@
     const sorted=[...ms].sort((a,b)=>b.mape-a.mape);
     const vals=ms.map(m=>m.mape), mn=Math.min(...vals), mx=Math.max(...vals);
     const col=v=>{const t=(v-mn)/((mx-mn)||1),l=(a,b)=>Math.round(a+(b-a)*t);return`rgb(${l(57,255)},${l(194,107)},${l(214,46)})`;};
-    if(mapeChart){
-      mapeChart.setOption({
+    mapeChart.setOption({
       grid:{left:128,right:52,top:8,bottom:24},
       tooltip:{backgroundColor:'#0E1116',borderColor:'#28313D',textStyle:{color:'#E8EDF4'},
         formatter:p=>{const m=sorted[p.dataIndex];return `${m.name_ko}<br><b>MAPE ${m.mape}%</b><br>RMSE ${m.rmse??'—'} · MAE ${m.mae??'—'}`;}},
@@ -291,10 +294,7 @@
       yAxis:{type:'category',data:sorted.map(m=>m.name_ko),axisLabel:{color:'#C3CCDA',fontSize:11},axisLine:{show:false},axisTick:{show:false}},
       series:[{type:'bar',barWidth:'58%',data:sorted.map(m=>({value:m.mape,itemStyle:{color:col(m.mape),borderRadius:[0,5,5,0]}})),
         label:{show:true,position:'right',color:'#C3CCDA',fontFamily:'IBM Plex Mono',fontSize:11,formatter:'{c}%'}}]
-      },true);
-    } else {
-      const el = document.getElementById('mapeChart'); el.innerHTML = '<div style="padding:12px;color:var(--muted)">MAPE 차트를 렌더하려면 네트워크에서 ECharts 라이브러리를 불러와야 합니다.</div>';
-    }
+    },true);
   }
 
   function renderPanel(){
@@ -349,9 +349,124 @@
   $('#tBand').onclick=function(){state.showBand=!state.showBand;this.setAttribute('aria-pressed',state.showBand);renderMain();};
   $('#tChamp').onclick=function(){state.showChamp=!state.showChamp;this.setAttribute('aria-pressed',state.showChamp);renderMain();};
   $('#tRibbon').onclick=function(){state.showRibbon=!state.showRibbon;this.setAttribute('aria-pressed',state.showRibbon);renderMain();};
-  window.addEventListener('resize',()=>{ if(mainChart) mainChart.resize(); if(heatChart) heatChart.resize(); if(mapeChart) mapeChart.resize(); });
+  window.addEventListener('resize',()=>{mainChart.resize();heatChart.resize();mapeChart.resize();});
 
   $('#foot').textContent = `SMP 예측 툴 산출물 연결 · 대상일 ${D.meta.target_date} · 발표 ${(D.meta.issue_ts||'').slice(0,16).replace('T',' ')} · 생성 ${(D.meta.generated_at||'').replace('T',' ')}`;
+
+  // ===== 검증(백테스트) 탭 =====
+  let btChart, btMape, btState={region:null, visible:{}, inited:false};
+  function btReg(){ const b=D.backtest||{}; return b[btState.region]||b[Object.keys(b)[0]]; }
+
+  function buildBtTools(){
+    const rg=btReg(); if(!rg) return;
+    const tools=$('#btTools'); tools.innerHTML='';
+    // region tabs (reuse seg look)
+    const seg=document.createElement('div'); seg.className='seg'; seg.style.marginRight='8px';
+    Object.keys(D.backtest).forEach(rk=>{ const b=document.createElement('button');
+      b.textContent=RNAME[rk]||rk; b.setAttribute('aria-pressed', rk===btState.region);
+      b.onclick=()=>{ btState.region=rk; btState.visible={}; [...seg.children].forEach(x=>x.setAttribute('aria-pressed','false')); b.setAttribute('aria-pressed','true'); renderBt(); };
+      seg.appendChild(b); });
+    tools.appendChild(seg);
+  }
+
+  function renderBtChart(){
+    const rg=btReg(); if(!rg) return;
+    const ms=rg.models;
+    if(Object.keys(btState.visible).length===0) ms.forEach(m=>btState.visible[m.id]=(m.role!=='model'? true : false)); // 기본: 챔피언+앙상블만 켜서 깔끔하게
+    const series=[{
+      name:'실측 SMP', type:'line', smooth:false, symbol:'none', data:rg.actual,
+      lineStyle:{width:2.6,color:'#FFFFFF'}, z:10, emphasis:{lineStyle:{width:3.4}}
+    }];
+    ms.forEach((m,i)=>{
+      const c=colorOf(m,i), isEns=m.role==='ensemble';
+      series.push({ name:m.name_ko, type:'line', smooth:false, symbol:'none', data:m.p50,
+        lineStyle:{ width:isEns?2.6:(m.role==='champion'?2.2:1.3), color:c,
+          opacity: btState.visible[m.id]? (isEns?1:.9):0 }, z:isEns?6:3 });
+    });
+    btChart.setOption({
+      grid:{left:48,right:16,top:14,bottom:64},
+      tooltip:{trigger:'axis',backgroundColor:'#0E1116',borderColor:'#28313D',textStyle:{color:'#E8EDF4'},
+        formatter:function(ps){ const h=ps[0].axisValue; let rows='';
+          const a=ps.find(x=>x.seriesName==='실측 SMP');
+          if(a) rows+=`<div class="tr"><span style="color:#fff">● 실측 SMP</span><b>${a.data==null?'—':a.data}</b></div>`;
+          ms.forEach((m,i)=>{ if(!btState.visible[m.id])return; const p=ps.find(x=>x.seriesName===m.name_ko);
+            if(!p||p.data==null)return; rows+=`<div class="tr"><span style="color:${colorOf(m,i)}">● ${m.name_ko}</span><b>${p.data}</b></div>`; });
+          return `<div class="ttip"><div class="th">${h} · ${D.meta.unit}</div>${rows}</div>`; }},
+      legend:{show:false},
+      dataZoom:[{type:'slider',start:80,end:100,height:18,bottom:24,borderColor:'#28313D',
+        textStyle:{color:'#8C97A8'},dataBackground:{lineStyle:{color:'#39C2D6'},areaStyle:{color:'rgba(57,194,214,.12)'}}},
+        {type:'inside'}],
+      xAxis:{type:'category',data:rg.timestamps,boundaryGap:false,axisLine:{lineStyle:{color:'#28313D'}},
+        axisTick:{show:false},axisLabel:{color:'#8C97A8',fontSize:10}},
+      yAxis:{type:'value',scale:true,splitLine:{lineStyle:{color:'rgba(40,49,61,.6)'}},
+        axisLabel:{color:'#8C97A8',fontSize:11,fontFamily:'IBM Plex Mono'}},
+      series
+    },true);
+  }
+
+  function renderBtPanel(){
+    const rg=btReg(); if(!rg) return; const ms=rg.models, list=$('#btModelList'); list.innerHTML='';
+    // MAPE: forecast 쪽 모델 지표 재사용(같은 backtest 기간)
+    const mapeOf=id=>{ const fm=(reg().models||[]).find(x=>x.id===id); return fm?fm.mape:null; };
+    const ordered=[...ms].sort((a,b)=>((mapeOf(a.id)??99)-(mapeOf(b.id)??99)));
+    ordered.forEach(m=>{ const i=ms.indexOf(m), c=colorOf(m,i), isEns=m.role==='ensemble';
+      const mp=mapeOf(m.id);
+      const row=document.createElement('div');
+      row.className='m'+(isEns?' ens':'')+(btState.visible[m.id]?'':' off');
+      row.setAttribute('role','button'); row.tabIndex=0;
+      const tag=isEns?'검증가중 앙상블':m.id===D.meta.champion_id?'<span style="color:var(--good)">챔피언</span>':(m.name||m.id);
+      const mc=mp==null?'var(--muted)':(mp<=8.6?'var(--good)':mp>=11?'var(--bad)':'#C3CCDA');
+      row.innerHTML=`<span class="sw" style="background:${c}"></span>
+        <span class="nm">${m.name_ko} <span class="tag">${tag}</span></span>
+        <span class="avg num"></span>
+        <span class="mape num" style="color:${mc}">${mp==null?'—':mp+'%'}</span>`;
+      const toggle=()=>{ btState.visible[m.id]=!btState.visible[m.id];
+        row.classList.toggle('off',!btState.visible[m.id]); renderBtChart(); };
+      row.onclick=toggle; row.onkeydown=e=>{if(e.key===' '||e.key==='Enter'){e.preventDefault();toggle();}};
+      list.appendChild(row);
+    });
+  }
+
+  function renderBtMape(){
+    // forecast의 mapeChart 로직과 동일하게, btMapeChart에 그림
+    const ms=reg().models.filter(m=>m.mape!=null);
+    if(!ms.length) return;
+    const sorted=[...ms].sort((a,b)=>b.mape-a.mape);
+    const vals=ms.map(m=>m.mape), mn=Math.min(...vals), mx=Math.max(...vals);
+    const col=v=>{const t=(v-mn)/((mx-mn)||1),l=(a,b)=>Math.round(a+(b-a)*t);return`rgb(${l(57,255)},${l(194,107)},${l(214,46)})`;};
+    btMape.setOption({grid:{left:128,right:52,top:8,bottom:24},
+      tooltip:{backgroundColor:'#0E1116',borderColor:'#28313D',textStyle:{color:'#E8EDF4'},
+        formatter:p=>{const m=sorted[p.dataIndex];return `${m.name_ko}<br><b>MAPE ${m.mape}%</b><br>RMSE ${m.rmse??'—'} · MAE ${m.mae??'—'}`;}},
+      xAxis:{type:'value',axisLabel:{color:'#8C97A8',fontSize:10,formatter:'{value}%'},splitLine:{lineStyle:{color:'rgba(40,49,61,.6)'}}},
+      yAxis:{type:'category',data:sorted.map(m=>m.name_ko),axisLabel:{color:'#C3CCDA',fontSize:11},axisLine:{show:false},axisTick:{show:false}},
+      series:[{type:'bar',barWidth:'58%',data:sorted.map(m=>({value:m.mape,itemStyle:{color:col(m.mape),borderRadius:[0,5,5,0]}})),
+        label:{show:true,position:'right',color:'#C3CCDA',fontFamily:'IBM Plex Mono',fontSize:11,formatter:'{c}%'}}]},true);
+  }
+
+  function renderBt(){ buildBtTools(); renderBtChart(); renderBtPanel(); renderBtMape(); }
+
+  function initBacktest(){
+    if(btState.inited) return;
+    const b=D.backtest||{};
+    if(!Object.keys(b).length){ $('#view-backtest').innerHTML='<section class="card"><p class="desc">백테스트 데이터가 없습니다. build_dashboard_data.py 에 --backtest 를 지정해 data.js 를 다시 생성하세요.</p></section>'; btState.inited=true; return; }
+    btState.region=Object.keys(b).includes('JEJU')?'JEJU':Object.keys(b)[0];
+    btChart=echarts.init($('#btChart')); btMape=echarts.init($('#btMapeChart'));
+    $('#btTitle').textContent=(D.meta.backtest_period||'').replace('SMP_','').replace('_backtest','').replace('_','-');
+    btState.inited=true; renderBt();
+  }
+
+  // 뷰 탭 전환
+  $('#viewSeg').querySelectorAll('button').forEach(b=>{
+    b.onclick=()=>{
+      const v=b.dataset.view;
+      $('#viewSeg').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed', x===b));
+      $('#view-forecast').hidden = v!=='forecast';
+      $('#view-backtest').hidden = v!=='backtest';
+      if(v==='backtest'){ initBacktest(); setTimeout(()=>{btChart&&btChart.resize();btMape&&btMape.resize();},30); }
+      else setTimeout(()=>{mainChart.resize();heatChart.resize();mapeChart.resize();},30);
+    };
+  });
+  window.addEventListener('resize',()=>{btChart&&btChart.resize();btMape&&btMape.resize();});
 
   initVisible(); renderAll();
 })();
