@@ -134,8 +134,15 @@ Design source:
 
 Current implementation status:
 
-- Not automatically collected yet.
-- The collector supports merging a demand CSV when available.
+- Automatically collected from the public EPSIS real-time supply/demand page when `--epsis-demand` is used.
+- Source endpoint: `https://epsis.kpx.or.kr/epsisnew/selectEkgeEpsMepRealGridAjax.ajax`
+- Source page: `https://epsis.kpx.or.kr/epsisnew/selectEkgeEpsMepRealChart.do?menuId=030300`
+- Source field: `현재부하(MW)`, delivered at 5-minute resolution.
+- Collector aggregation: 5-minute values are averaged into `hour_end` 1 to 24.
+- EPSIS exposes actual/near-real-time system load, not a true D+1 demand forecast.
+- For future dates such as tomorrow, the collector fills `demand_forecast_d1` from existing demand history using same-hour lag-7 first, then same weekday/hour average, then same-hour average.
+- The public EPSIS response does not expose separate LAND/JEJU demand, so the same system load input is duplicated for both model regions.
+- A real day-ahead demand CSV can still override or supplement this field when available.
 
 Expected demand CSV schema:
 
@@ -152,7 +159,7 @@ Merge command:
   --start-date 2025-09-01 \
   --end-date 2026-06-15 \
   --pv-proxy \
-  --demand-csv /path/to/demand.csv \
+  --epsis-demand \
   --out /home/opc/smp/data/external_features.csv
 ```
 
@@ -191,8 +198,8 @@ Current generated status:
 
 - period: `2025-09-01` to `2026-06-15`
 - rows: 13,824
-- populated: `pv_forecast_total`, `temp_pop_weighted`, `irradiance_avg`, `wind_speed_avg`
-- empty: `demand_forecast_d1`, `wind_forecast_total`
+- populated: `demand_forecast_d1`, `pv_forecast_total`, `temp_pop_weighted`, `irradiance_avg`, `wind_speed_avg`
+- empty: `wind_forecast_total`
 
 ## 4. Daily Pipeline
 
@@ -211,9 +218,10 @@ Current flow:
 
 ```bash
 collect_external_features.py \
-  --start-date "$TARGET_DATE" \
+  --start-date "$FEATURE_START_DATE" \
   --end-date "$TARGET_DATE" \
   --pv-proxy \
+  --epsis-demand \
   --merge-existing \
   --out /home/opc/smp/data/external_features.csv
 ```

@@ -22,6 +22,7 @@ import argparse
 import datetime as dt
 import json
 import math
+import re
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -49,6 +50,8 @@ DEFAULT_PV_CAPACITY_MW = {
     "LAND": 25_000.0,
     "JEJU": 1_100.0,
 }
+
+EPSIS_REAL_DEMAND_URL = "https://epsis.kpx.or.kr/epsisnew/selectEkgeEpsMepRealGridAjax.ajax"
 
 
 def _request_open_meteo(base_url: str, lat: float, lon: float, start: str, end: str) -> pd.DataFrame:
@@ -144,6 +147,119 @@ def add_pv_proxy(df: pd.DataFrame, capacities: dict[str, float]) -> pd.DataFrame
     return out
 
 
+def _clean_number(value: object) -> float:
+    text = str(value).strip().replace(",", "")
+    if not text or text == "-":
+        return math.nan
+    return float(text)
+
+
+def _date_chunks(start: dt.date, end: dt.date, days: int = 7) -> list[tuple[dt.date, dt.date]]:
+    chunks = []
+    cur = start
+    while cur <= end:
+        chunk_end = min(end, cur + dt.timedelta(days=days - 1))
+        chunks.append((cur, chunk_end))
+        cur = chunk_end + dt.timedelta(days=1)
+    return chunks
+
+
+def fetch_epsis_real_demand(start: str, end: str, regions: list[str]) -> pd.DataFrame:
+    """Fetch actual 5-minute KPX/EPSIS load and aggregate it to hourly demand.
+
+    EPSIS exposes current/actual load, not a day-ahead forecast. The returned
+    system load is duplicated by region because the public page does not expose
+    a LAND/JEJU split.
+    """
+    start_d = dt.date.fromisoformat(start)
+    end_d = min(dt.date.fromisoformat(end), dt.date.today())
+    if start_d > end_d:
+        return pd.DataFrame(columns=["region", "target_date", "hour_end", "demand_forecast_d1"])
+
+    rows = []
+    pattern = re.compile(
+        r'c2\s*=\s*textFormmat\("(?P<load>[^"]*)",0\);.*?'
+        r'gridData\.push\(\{"year":"(?P<ts>\d{4}-\d{2}-\d{2} \d{2}:\d{2})"',
+        re.S,
+    )
+    headers = {
+        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+        "Referer": "https://epsis.kpx.or.kr/epsisnew/selectEkgeEpsMepRealChart.do?menuId=030300",
+        "User-Agent": "Mozilla/5.0",
+    }
+    for chunk_start, chunk_end in _date_chunks(start_d, end_d):
+        form = urllib.parse.urlencode(
+            {
+                "beginDate": chunk_start.strftime("%Y%m%d"),
+                "endDate": chunk_end.strftime("%Y%m%d"),
+                "editYn": "N",
+            }
+        ).encode("utf-8")
+        req = urllib.request.Request(EPSIS_REAL_DEMAND_URL, data=form, headers=headers, method="POST")
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            text = resp.read().decode("utf-8", errors="replace")
+        for match in pattern.finditer(text):
+            ts = pd.Timestamp(match.group("ts"))
+            rows.append({"ts": ts, "load": _clean_number(match.group("load"))})
+
+    if not rows:
+        return pd.DataFrame(columns=["region", "target_date", "hour_end", "demand_forecast_d1"])
+
+    raw = pd.DataFrame(rows).dropna(subset=["load"]).drop_duplicates("ts", keep="last")
+    raw["target_date"] = raw["ts"].dt.date.astype(str)
+    raw["hour_end"] = raw["ts"].dt.hour + 1
+    hourly = (
+        raw.groupby(["target_date", "hour_end"], as_index=False)["load"]
+        .mean()
+        .rename(columns={"load": "demand_forecast_d1"})
+    )
+    return pd.concat(
+        [hourly.assign(region=region) for region in regions],
+        ignore_index=True,
+    )[["region", "target_date", "hour_end", "demand_forecast_d1"]]
+
+
+def fill_demand_proxy_from_history(df: pd.DataFrame) -> pd.DataFrame:
+    out = df.copy()
+    if "demand_forecast_d1" not in out.columns:
+        return out
+
+    out["target_date"] = pd.to_datetime(out["target_date"]).dt.date.astype(str)
+    out["hour_end"] = pd.to_numeric(out["hour_end"], errors="raise").astype(int)
+    out["_date"] = pd.to_datetime(out["target_date"])
+    out["_dow"] = out["_date"].dt.dayofweek
+
+    hist = out[out["demand_forecast_d1"].notna()].copy()
+    if hist.empty:
+        out.drop(columns=["_date", "_dow"], inplace=True)
+        return out
+
+    lag = hist[["region", "_date", "hour_end", "demand_forecast_d1"]].copy()
+    lag["_date"] = lag["_date"] + pd.Timedelta(days=7)
+    lag.rename(columns={"demand_forecast_d1": "_lag7_demand"}, inplace=True)
+    out = out.merge(lag, on=["region", "_date", "hour_end"], how="left")
+    out["demand_forecast_d1"] = out["demand_forecast_d1"].combine_first(out["_lag7_demand"])
+
+    dow_hour_avg = (
+        hist.groupby(["region", "_dow", "hour_end"], as_index=False)["demand_forecast_d1"]
+        .mean()
+        .rename(columns={"demand_forecast_d1": "_dow_hour_demand"})
+    )
+    out = out.merge(dow_hour_avg, on=["region", "_dow", "hour_end"], how="left")
+    out["demand_forecast_d1"] = out["demand_forecast_d1"].combine_first(out["_dow_hour_demand"])
+
+    hour_avg = (
+        hist.groupby(["region", "hour_end"], as_index=False)["demand_forecast_d1"]
+        .mean()
+        .rename(columns={"demand_forecast_d1": "_hour_demand"})
+    )
+    out = out.merge(hour_avg, on=["region", "hour_end"], how="left")
+    out["demand_forecast_d1"] = out["demand_forecast_d1"].combine_first(out["_hour_demand"])
+
+    out.drop(columns=["_date", "_dow", "_lag7_demand", "_dow_hour_demand", "_hour_demand"], inplace=True)
+    return out
+
+
 def merge_optional_csv(base: pd.DataFrame, path: Path | None, columns: list[str]) -> pd.DataFrame:
     if not path:
         return base
@@ -180,6 +296,10 @@ def build(args: argparse.Namespace) -> pd.DataFrame:
         if args.jeju_pv_capacity_mw is not None:
             capacities["JEJU"] = args.jeju_pv_capacity_mw
         df = add_pv_proxy(df, capacities)
+    if args.epsis_demand:
+        epsis_demand = fetch_epsis_real_demand(args.start_date, args.end_date, list(REGION_POINTS))
+        if not epsis_demand.empty:
+            df = df.merge(epsis_demand, on=["region", "target_date", "hour_end"], how="left")
     df = merge_optional_csv(df, args.demand_csv, ["demand_forecast_d1"])
     df = merge_optional_csv(df, args.pv_csv, ["pv_forecast_total", "wind_forecast_total"])
     df = coalesce_source_columns(df)
@@ -211,6 +331,8 @@ def main() -> None:
                     help="Optional CSV with region,target_date,hour_end,pv_forecast_total[,wind_forecast_total]")
     ap.add_argument("--pv-proxy", action="store_true",
                     help="Fill pv_forecast_total from irradiance proxy when no real PV source is available")
+    ap.add_argument("--epsis-demand", action="store_true",
+                    help="Fetch KPX/EPSIS actual load and aggregate to hourly demand input")
     ap.add_argument("--land-pv-capacity-mw", type=float, default=None)
     ap.add_argument("--jeju-pv-capacity-mw", type=float, default=None)
     ap.add_argument("--merge-existing", action="store_true",
@@ -228,6 +350,8 @@ def main() -> None:
             .sort_values(["region", "target_date", "hour_end"])
             .reset_index(drop=True)
         )
+    if args.epsis_demand:
+        out = fill_demand_proxy_from_history(out)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     out.to_csv(args.out, index=False, encoding="utf-8-sig")
     non_null = {c: int(out[c].notna().sum()) for c in out.columns if c not in {"region", "target_date", "hour_end"}}
