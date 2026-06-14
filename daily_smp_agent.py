@@ -59,7 +59,7 @@ MODEL_KO = {
     "MDL-05": "LightGBM 분위수",
     "MDL-06": "TFT 대체 MLP",
     "MDL-07": "검증가중 앙상블",
-    "MDL-08": "Research xlsb 프로파일",
+    "MDL-08": "0원 위험 보정 분위수",
 }
 
 
@@ -332,11 +332,7 @@ def forecast_region(feature_df: pd.DataFrame, region: str,
         )
 
     log(f"Training validation models for {region}")
-    model_fns = [rb.mdl01, rb.mdl02, rb.mdl03, rb.mdl04, rb.mdl05, rb.mdl06]
-    if rb.RESEARCH_PROFILE_PATH.exists():
-        model_fns.append(rb.mdl08)
-    else:
-        log(f"Skipping MDL-08: profile not found at {rb.RESEARCH_PROFILE_PATH}")
+    model_fns = [rb.mdl01, rb.mdl02, rb.mdl03, rb.mdl04, rb.mdl05, rb.mdl06, rb.mdl08]
     val_results = [fn(train0, valid, forecast_rows) for fn in model_fns]
 
     log(f"Training final models for {region}")

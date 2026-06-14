@@ -295,16 +295,38 @@ This avoids breaking the pipeline when demand, fuel, or grid-event feeds are not
 Currently active optional features when `external_features.csv` is present:
 
 ```text
+demand_forecast_d1
 pv_forecast_total
 temp_pop_weighted
 hdd
 cdd
 irradiance_avg
 wind_speed_avg
+netload
+renewable_share
+netload_ratio
+zero_price_risk
+solar_oversupply_flag
 peak_flag
 holiday_bridge_flag
 seollal_chuseok_window
 ```
+
+### 5.4 Zero / Negative Price Risk Features
+
+Observed 0 or negative SMP periods are concentrated in low-netload conditions:
+
+- `LAND`: high solar proxy relative to load; 0-price samples have much higher renewable/load share than normal samples.
+- `JEJU`: 0 or negative prices are concentrated around hour-ending 11~15 with high irradiance and lower netload.
+
+Derived features:
+
+| Feature | Description |
+| --- | --- |
+| `renewable_share` | `(pv_forecast_total + wind_forecast_total) / demand_forecast_d1` |
+| `netload_ratio` | `netload / demand_forecast_d1` |
+| `solar_oversupply_flag` | solar-hour high-renewable/low-netload condition flag |
+| `zero_price_risk` | rule score from renewable share, irradiance, solar hour, weekend/holiday, and netload ratio |
 
 ## 6. Model Definitions
 
@@ -447,7 +469,7 @@ Known warning:
 Input:
 
 - MDL-01 through MDL-06 outputs
-- MDL-08 also joins when its profile file is available
+- MDL-08 zero-regime model output
 
 Weighting:
 
@@ -463,24 +485,28 @@ Role:
 
 - operational ensemble and dashboard risk model
 
-### MDL-08 Research Workbook Profile
+### MDL-08 Zero-Regime LightGBM Quantile
 
-Required file:
+Input:
 
-```text
-/home/opc/smp/repo/source_docs/mdl08_research_smp_profile.csv
-```
+- same input feature set as MDL-05
+- additional zero-price risk features:
+  - `renewable_share`
+  - `netload_ratio`
+  - `zero_price_risk`
+  - `solar_oversupply_flag`
 
-Current status:
+Model:
 
-- not active because the file is not present
-- `daily_smp_agent.py` skips MDL-08 when the profile is missing
+- LightGBM quantile model like MDL-05
+- increases sample weights for historical `SMP <= 1` and `SMP <= 10` samples
+- trains a separate zero-price probability model
+- blends P10/P25/P50/P75/P90 toward empirical low-price quantiles only when the model/rules indicate high zero-price risk
 
-Expected columns:
+Role:
 
-```text
-month,hour_end,smp_profile
-```
+- specialized low/zero/negative-price regime model
+- may be worse than MDL-04/MDL-05 on ordinary hours, but is intended to react when renewable output is high relative to load
 
 ## 7. Backtest and Dashboard Data
 

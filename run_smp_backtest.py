@@ -17,7 +17,7 @@ if PYDEPS.exists():
 import numpy as np
 import pandas as pd
 
-from sklearn.ensemble import HistGradientBoostingRegressor
+from sklearn.ensemble import HistGradientBoostingClassifier, HistGradientBoostingRegressor
 from sklearn.impute import SimpleImputer
 from sklearn.isotonic import IsotonicRegression
 from sklearn.linear_model import Ridge
@@ -70,6 +70,10 @@ DESIGN_DERIVED_FEATURES = [
     "peak_flag",
     "netload",
     "netload_ramp",
+    "renewable_share",
+    "netload_ratio",
+    "zero_price_risk",
+    "solar_oversupply_flag",
     "hdd",
     "cdd",
     "holiday_bridge_flag",
@@ -253,9 +257,26 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
         demand = pd.to_numeric(p["demand_forecast_d1"], errors="coerce")
         pv = pd.to_numeric(p["pv_forecast_total"], errors="coerce").fillna(0)
         wind = pd.to_numeric(p["wind_forecast_total"], errors="coerce").fillna(0)
+        renewable = pv + wind
         p["demand_lag_168h"] = demand.shift(168)
-        p["netload"] = demand - pv - wind
+        p["netload"] = demand - renewable
         p["netload_ramp"] = p["netload"].diff()
+        p["renewable_share"] = renewable / demand.replace(0, np.nan)
+        p["netload_ratio"] = p["netload"] / demand.replace(0, np.nan)
+        p["solar_oversupply_flag"] = (
+            (p["hour_end"].between(11, 15))
+            & (p["renewable_share"] >= 0.12)
+            & ((p["is_weekend"] == 1) | (p["is_holiday"] == 1) | (p["netload_ratio"] <= 0.84))
+        ).astype(int)
+        p["zero_price_risk"] = (
+            3.0 * p["renewable_share"].clip(lower=0, upper=0.40).fillna(0)
+            + 1.2 * p["irradiance_avg"].fillna(0).clip(lower=0) / 1000.0
+            + 0.8 * p["is_solar_hour"]
+            + 0.7 * p["solar_oversupply_flag"]
+            + 0.4 * p["is_weekend"]
+            + 0.5 * p["is_holiday"]
+            - 1.5 * p["netload_ratio"].clip(lower=0, upper=1.20).fillna(1.0)
+        )
         for lag in [48, 72, 96, 120, 144, 168, 336, 672]:
             p[f"smp_lag_{lag}h"] = y.shift(lag)
 
@@ -333,6 +354,10 @@ OPTIONAL_MODEL_FEATURES = [
     "wind_forecast_total",
     "netload",
     "netload_ramp",
+    "renewable_share",
+    "netload_ratio",
+    "zero_price_risk",
+    "solar_oversupply_flag",
     "lng_heat_price",
     "brent_lag_10d",
     "usdkrw_lag_1d",
@@ -576,6 +601,144 @@ def mdl05(train: pd.DataFrame, valid: pd.DataFrame, test: pd.DataFrame) -> Model
     return ModelResult("MDL-05", "LightGBM quantile", val, tst)
 
 
+def _zero_regime_probability(train: pd.DataFrame, valid: pd.DataFrame, test: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
+    feature_cols = active_features(train)
+    y = (train["smp"] <= 1.0).astype(int)
+    if int(y.sum()) < 20 or int(y.nunique()) < 2:
+        return np.zeros(len(valid), dtype=float), np.zeros(len(test), dtype=float)
+
+    if HAS_LIGHTGBM:
+        model = LGBMRegressor(
+            objective="binary",
+            n_estimators=180,
+            learning_rate=0.04,
+            num_leaves=31,
+            min_child_samples=25,
+            subsample=0.85,
+            colsample_bytree=0.90,
+            reg_lambda=1.0,
+            scale_pos_weight=max(1.0, float((len(y) - y.sum()) / max(y.sum(), 1))),
+            random_state=808,
+            verbosity=-1,
+            n_jobs=1,
+        )
+        model.fit(train[feature_cols], y)
+        val_prob = np.clip(model.predict(valid[feature_cols]), 0, 1)
+        test_prob = np.clip(model.predict(test[feature_cols]), 0, 1)
+        return val_prob, test_prob
+
+    pipe = Pipeline(
+        [
+            ("impute", SimpleImputer(strategy="median")),
+            ("clf", HistGradientBoostingClassifier(max_iter=180, random_state=808)),
+        ]
+    )
+    pipe.fit(train[feature_cols], y)
+    return pipe.predict_proba(valid[feature_cols])[:, 1], pipe.predict_proba(test[feature_cols])[:, 1]
+
+
+def _zero_adjust_quantiles(frame: pd.DataFrame, probs: np.ndarray, low_quantiles: dict[str, float]) -> pd.DataFrame:
+    out = frame.copy()
+    q_cols = ["p10", "p25", "p50", "p75", "p90"]
+    probs = np.asarray(probs, dtype=float)
+    renewable_share = pd.to_numeric(out.get("renewable_share", 0), errors="coerce").fillna(0).to_numpy()
+    risk = pd.to_numeric(out.get("zero_price_risk", 0), errors="coerce").fillna(0).to_numpy()
+    solar_flag = pd.to_numeric(out.get("solar_oversupply_flag", 0), errors="coerce").fillna(0).to_numpy()
+    rule_boost = (
+        (renewable_share >= 0.22).astype(float) * 0.18
+        + (risk >= 0.95).astype(float) * 0.14
+        + solar_flag * 0.12
+    )
+    prob_component = np.clip((probs - 0.45) / 0.55, 0, 1) * 0.62
+    blend = np.clip(prob_component + rule_boost, 0, 0.72)
+    for col in q_cols:
+        low_val = float(low_quantiles.get(col, 0.0))
+        out[col] = (1.0 - blend) * out[col].to_numpy(dtype=float) + blend * low_val
+    out[q_cols] = np.sort(out[q_cols].to_numpy(dtype=float), axis=1)
+    return out
+
+
+def mdl08(train: pd.DataFrame, valid: pd.DataFrame, test: pd.DataFrame) -> ModelResult:
+    """MDL-05-style quantile model with explicit zero/negative price regime handling."""
+    val = valid[
+        ["region", "target_date", "hour_end", "hour_index_0_23", "target_ts_end", "smp",
+         "renewable_share", "zero_price_risk", "solar_oversupply_flag"]
+    ].copy()
+    tst = test[
+        ["region", "target_date", "hour_end", "hour_index_0_23", "target_ts_end", "smp",
+         "renewable_share", "zero_price_risk", "solar_oversupply_flag"]
+    ].copy()
+    val.rename(columns={"smp": "actual"}, inplace=True)
+    tst.rename(columns={"smp": "actual"}, inplace=True)
+    val["model_id"] = "MDL-08"
+    tst["model_id"] = "MDL-08"
+    val["model_name"] = "Zero-regime LightGBM quantile"
+    tst["model_name"] = "Zero-regime LightGBM quantile"
+
+    y_train = train["smp"].to_numpy(dtype=float)
+    zeroish = pd.to_numeric(train["smp"], errors="coerce") <= 1.0
+    low_sample = train.loc[zeroish, "smp"]
+    if len(low_sample) < 20:
+        low_sample = train["smp"].nsmallest(max(20, min(120, len(train))))
+    low_quantiles = {
+        f"p{int(q * 100):02d}": float(np.quantile(low_sample.to_numpy(dtype=float), q))
+        for q in QUANTILES
+    }
+    feature_cols = active_features(train)
+    risk = pd.to_numeric(train.get("zero_price_risk"), errors="coerce").fillna(0)
+    sample_weight = np.ones(len(train), dtype=float)
+    sample_weight += zeroish.to_numpy(dtype=float) * 4.0
+    sample_weight += (pd.to_numeric(train["smp"], errors="coerce") <= 10.0).to_numpy(dtype=float) * 1.5
+    sample_weight += (risk >= risk.quantile(0.95)).to_numpy(dtype=float) * 0.5
+
+    for q in QUANTILES:
+        col = f"p{int(q * 100):02d}"
+        if HAS_LIGHTGBM:
+            model = LGBMRegressor(
+                objective="quantile",
+                alpha=q,
+                n_estimators=320,
+                learning_rate=0.03,
+                num_leaves=43,
+                min_child_samples=25,
+                subsample=0.85,
+                colsample_bytree=0.92,
+                reg_lambda=1.2,
+                random_state=808 + int(q * 100),
+                verbosity=-1,
+                n_jobs=1,
+            )
+            model.fit(train[feature_cols], train["smp"], sample_weight=sample_weight)
+            val[col] = model.predict(valid[feature_cols])
+            tst[col] = model.predict(test[feature_cols])
+        else:
+            model = Pipeline(
+                [
+                    ("impute", SimpleImputer(strategy="median")),
+                    (
+                        "hgb",
+                        HistGradientBoostingRegressor(
+                            loss="quantile",
+                            quantile=q,
+                            max_iter=320,
+                            random_state=808 + int(q * 100),
+                        ),
+                    ),
+                ]
+            )
+            model.fit(train[feature_cols], train["smp"], hgb__sample_weight=sample_weight)
+            val[col] = model.predict(valid[feature_cols])
+            tst[col] = model.predict(test[feature_cols])
+
+    q_cols = ["p10", "p25", "p50", "p75", "p90"]
+    val[q_cols] = np.sort(val[q_cols].to_numpy(dtype=float), axis=1)
+    tst[q_cols] = np.sort(tst[q_cols].to_numpy(dtype=float), axis=1)
+    val_prob, test_prob = _zero_regime_probability(train, valid, test)
+    val = _zero_adjust_quantiles(val, val_prob, low_quantiles)
+    tst = _zero_adjust_quantiles(tst, test_prob, low_quantiles)
+    return ModelResult("MDL-08", "Zero-regime LightGBM quantile", val, tst)
+
+
 def mdl06(train: pd.DataFrame, valid: pd.DataFrame, test: pd.DataFrame) -> ModelResult:
     pipe = Pipeline(
         [
@@ -632,20 +795,6 @@ def research_profile_pred(df: pd.DataFrame, profile: pd.DataFrame) -> np.ndarray
         missing = merged.loc[merged["smp_profile"].isna(), ["month", "hour_end"]].drop_duplicates()
         raise ValueError(f"MDL-08 profile lookup failed: {missing.head().to_dict(orient='records')}")
     return merged["smp_profile"].to_numpy(dtype=float)
-
-
-def mdl08(train: pd.DataFrame, valid: pd.DataFrame, test: pd.DataFrame) -> ModelResult:
-    profile = load_research_smp_profile()
-    train_pred = research_profile_pred(train, profile)
-    residuals = train["smp"].to_numpy(dtype=float) - train_pred
-    val = base_pred_frame(valid, "MDL-08", "Research workbook profile", research_profile_pred(valid, profile))
-    tst = base_pred_frame(test, "MDL-08", "Research workbook profile", research_profile_pred(test, profile))
-    return ModelResult(
-        "MDL-08",
-        "Research workbook profile",
-        add_residual_quantiles(val, residuals),
-        add_residual_quantiles(tst, residuals),
-    )
 
 
 def ensemble_from_results(results: list[ModelResult]) -> ModelResult:
@@ -835,9 +984,8 @@ def run_region(
         mdl04(train0, valid, test),
         mdl05(train0, valid, test),
         mdl06(train0, valid, test),
+        mdl08(train0, valid, test),
     ]
-    if RESEARCH_PROFILE_PATH.exists():
-        val_results.append(mdl08(train0, valid, test))
 
     test_results = [
         mdl01(final_train, valid, test),
@@ -846,9 +994,8 @@ def run_region(
         mdl04(final_train, valid, test),
         mdl05(final_train, valid, test),
         mdl06(final_train, valid, test),
+        mdl08(final_train, valid, test),
     ]
-    if RESEARCH_PROFILE_PATH.exists():
-        test_results.append(mdl08(final_train, valid, test))
 
     combined = []
     for vr, tr in zip(val_results, test_results):
@@ -882,7 +1029,7 @@ def write_report(metrics: pd.DataFrame, weights: pd.DataFrame, notes: dict[str, 
         "- MDL-05: LightGBM quantile 5개 헤드(P10/P25/P50/P75/P90).",
         "- MDL-06: TFT 사전검증 대체로 lag sequence MLP.",
             "- MDL-07: 검증 기간 MAE 역수 가중 앙상블.",
-            "- MDL-08: 연구 프로파일 파일이 있을 때만 외부 연구모델 벤치마크로 포함합니다.",
+            "- MDL-08: MDL-05 분위수 모델에 재생에너지/부하 기반 0원·음수 가격 regime 보정을 추가한 모델.",
         "",
         "## 상위 결과(MAE 기준)",
         markdown_table(
@@ -1030,7 +1177,7 @@ def main() -> None:
         "lightgbm_available": HAS_LIGHTGBM,
         "n_actual_rows": int(len(actuals)),
         "regions": sorted(actuals["region"].unique().tolist()),
-        "mdl08_profile": str(RESEARCH_PROFILE_PATH),
+        "mdl08_profile": "zero-regime LightGBM quantile",
         "external_features": str(args.external_features),
         "predictions_csv": str(predictions_csv),
         "metrics_csv": str(metrics_csv),
