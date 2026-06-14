@@ -1,11 +1,11 @@
 window.SMP_DATA = {
   "meta": {
     "target_date": "2026-06-15",
-    "issue_ts": "2026-06-14T09:36:27.832097+09:00",
+    "issue_ts": "2026-06-14T09:56:16.858847+09:00",
     "champion_id": "MDL-04",
     "ensemble_id": "MDL-07",
     "unit": "KRW/kWh",
-    "generated_at": "2026-06-14T00:37:14",
+    "generated_at": "2026-06-14T00:57:07",
     "backtest_period": ""
   },
   "regions": {
