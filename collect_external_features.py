@@ -53,6 +53,29 @@ DEFAULT_PV_CAPACITY_MW = {
 
 EPSIS_REAL_DEMAND_URL = "https://epsis.kpx.or.kr/epsisnew/selectEkgeEpsMepRealGridAjax.ajax"
 
+KR_PUBLIC_HOLIDAYS = {
+    # 2023
+    "2023-01-01", "2023-01-21", "2023-01-22", "2023-01-23", "2023-01-24",
+    "2023-03-01", "2023-05-05", "2023-05-27", "2023-05-29", "2023-06-06",
+    "2023-08-15", "2023-09-28", "2023-09-29", "2023-09-30", "2023-10-02",
+    "2023-10-03", "2023-10-09", "2023-12-25",
+    # 2024
+    "2024-01-01", "2024-02-09", "2024-02-10", "2024-02-11", "2024-02-12",
+    "2024-03-01", "2024-04-10", "2024-05-05", "2024-05-06", "2024-05-15",
+    "2024-06-06", "2024-08-15", "2024-09-16", "2024-09-17", "2024-09-18",
+    "2024-10-03", "2024-10-09", "2024-12-25",
+    # 2025
+    "2025-01-01", "2025-01-28", "2025-01-29", "2025-01-30", "2025-03-01",
+    "2025-03-03", "2025-05-05", "2025-05-06", "2025-06-03", "2025-06-06",
+    "2025-08-15", "2025-10-03", "2025-10-05", "2025-10-06", "2025-10-07",
+    "2025-10-08", "2025-10-09", "2025-12-25",
+    # 2026
+    "2026-01-01", "2026-02-16", "2026-02-17", "2026-02-18", "2026-03-01",
+    "2026-03-02", "2026-05-05", "2026-05-24", "2026-05-25", "2026-06-03",
+    "2026-06-06", "2026-08-15", "2026-08-17", "2026-09-24", "2026-09-25",
+    "2026-09-26", "2026-10-03", "2026-10-05", "2026-10-09", "2026-12-25",
+}
+
 
 def _request_open_meteo(base_url: str, lat: float, lon: float, start: str, end: str) -> pd.DataFrame:
     params = {
@@ -228,35 +251,62 @@ def fill_demand_proxy_from_history(df: pd.DataFrame) -> pd.DataFrame:
     out["hour_end"] = pd.to_numeric(out["hour_end"], errors="raise").astype(int)
     out["_date"] = pd.to_datetime(out["target_date"])
     out["_dow"] = out["_date"].dt.dayofweek
+    out["_month"] = out["_date"].dt.month
+    out["_season"] = (out["_month"] % 12) // 3
+    out["_is_weekend"] = out["_dow"].isin([5, 6])
+    out["_is_holiday"] = out["target_date"].isin(KR_PUBLIC_HOLIDAYS)
+    out["_day_type"] = "weekday"
+    out.loc[out["_is_weekend"], "_day_type"] = "weekend"
+    out.loc[out["_is_holiday"], "_day_type"] = "holiday"
 
     hist = out[out["demand_forecast_d1"].notna()].copy()
     if hist.empty:
-        out.drop(columns=["_date", "_dow"], inplace=True)
+        out.drop(columns=["_date", "_dow", "_month", "_season", "_is_weekend", "_is_holiday", "_day_type"], inplace=True)
         return out
 
-    lag = hist[["region", "_date", "hour_end", "demand_forecast_d1"]].copy()
-    lag["_date"] = lag["_date"] + pd.Timedelta(days=7)
-    lag.rename(columns={"demand_forecast_d1": "_lag7_demand"}, inplace=True)
-    out = out.merge(lag, on=["region", "_date", "hour_end"], how="left")
-    out["demand_forecast_d1"] = out["demand_forecast_d1"].combine_first(out["_lag7_demand"])
+    missing_idx = out.index[out["demand_forecast_d1"].isna()].tolist()
+    for idx in missing_idx:
+        row = out.loc[idx]
+        candidates = hist[
+            (hist["region"] == row["region"])
+            & (hist["hour_end"] == row["hour_end"])
+            & (hist["_date"] < row["_date"])
+        ].copy()
+        if candidates.empty:
+            continue
 
-    dow_hour_avg = (
-        hist.groupby(["region", "_dow", "hour_end"], as_index=False)["demand_forecast_d1"]
-        .mean()
-        .rename(columns={"demand_forecast_d1": "_dow_hour_demand"})
-    )
-    out = out.merge(dow_hour_avg, on=["region", "_dow", "hour_end"], how="left")
-    out["demand_forecast_d1"] = out["demand_forecast_d1"].combine_first(out["_dow_hour_demand"])
+        days_ago = (row["_date"] - candidates["_date"]).dt.days.clip(lower=1)
+        season_distance = (candidates["_season"] - row["_season"]).abs()
+        season_distance = season_distance.where(season_distance <= 2, 4 - season_distance)
+        month_distance = (candidates["_month"] - row["_month"]).abs()
+        month_distance = month_distance.where(month_distance <= 6, 12 - month_distance)
 
-    hour_avg = (
-        hist.groupby(["region", "hour_end"], as_index=False)["demand_forecast_d1"]
-        .mean()
-        .rename(columns={"demand_forecast_d1": "_hour_demand"})
-    )
+        weights = 1.0 / (1.0 + days_ago / 45.0)
+        weights *= 1.0 / (1.0 + season_distance)
+        weights *= 1.0 / (1.0 + month_distance / 2.0)
+        weights *= candidates["_day_type"].eq(row["_day_type"]).map({True: 4.0, False: 0.35})
+        weights *= candidates["_dow"].eq(row["_dow"]).map({True: 1.6, False: 1.0})
+
+        if "temp_pop_weighted" in candidates.columns and pd.notna(row.get("temp_pop_weighted")):
+            temp_diff = (candidates["temp_pop_weighted"] - row["temp_pop_weighted"]).abs()
+            weights *= 1.0 / (1.0 + temp_diff.fillna(temp_diff.median()) / 5.0)
+
+        strongest = candidates.assign(_weight=weights).nlargest(90, "_weight")
+        weight_sum = strongest["_weight"].sum()
+        if weight_sum > 0:
+            out.at[idx, "demand_forecast_d1"] = float(
+                (strongest["demand_forecast_d1"] * strongest["_weight"]).sum() / weight_sum
+            )
+
+    hour_avg = hist.groupby(["region", "hour_end"], as_index=False)["demand_forecast_d1"].mean()
+    hour_avg.rename(columns={"demand_forecast_d1": "_hour_demand"}, inplace=True)
     out = out.merge(hour_avg, on=["region", "hour_end"], how="left")
     out["demand_forecast_d1"] = out["demand_forecast_d1"].combine_first(out["_hour_demand"])
 
-    out.drop(columns=["_date", "_dow", "_lag7_demand", "_dow_hour_demand", "_hour_demand"], inplace=True)
+    out.drop(
+        columns=["_date", "_dow", "_month", "_season", "_is_weekend", "_is_holiday", "_day_type", "_hour_demand"],
+        inplace=True,
+    )
     return out
 
 

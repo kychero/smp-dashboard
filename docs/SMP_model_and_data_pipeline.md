@@ -140,7 +140,9 @@ Current implementation status:
 - Source field: `현재부하(MW)`, delivered at 5-minute resolution.
 - Collector aggregation: 5-minute values are averaged into `hour_end` 1 to 24.
 - EPSIS exposes actual/near-real-time system load, not a true D+1 demand forecast.
-- For future dates such as tomorrow, the collector fills `demand_forecast_d1` from existing demand history using same-hour lag-7 first, then same weekday/hour average, then same-hour average.
+- For future dates such as tomorrow, the collector fills `demand_forecast_d1` from existing demand history using weighted similar-day matching.
+- Similar-day weights include recency, same hour, season, month distance, weekday/weekend/holiday type, weekday number, and temperature similarity.
+- Korean public holidays for 2023 to 2026 are embedded in the collector so the daily job has no extra package dependency.
 - The public EPSIS response does not expose separate LAND/JEJU demand, so the same system load input is duplicated for both model regions.
 - A real day-ahead demand CSV can still override or supplement this field when available.
 
