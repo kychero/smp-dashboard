@@ -105,12 +105,20 @@
   .legend-foot{font-size:10.5px;color:var(--muted);margin-top:10px;line-height:1.6}
   .pill{font-family:var(--mono);font-size:11px;padding:2px 7px;border-radius:6px;background:var(--panel-2);border:1px solid var(--line)}
   .row2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
+  .table-wrap{overflow:auto;border:1px solid var(--line);border-radius:10px;background:rgba(14,17,22,.24)}
+  table{width:100%;border-collapse:collapse;font-size:12px;min-width:760px}
+  th,td{padding:8px 10px;border-bottom:1px solid rgba(40,49,61,.72);text-align:right;white-space:nowrap}
+  th{position:sticky;top:0;background:var(--panel-2);color:#C3CCDA;font-size:11.5px;font-weight:700;z-index:1}
+  td:first-child,th:first-child{text-align:left;position:sticky;left:0;background:var(--panel-2);z-index:2}
+  tbody tr:hover td{background:rgba(57,194,214,.06)}
+  .score-good{color:var(--good);font-weight:700}.score-warn{color:var(--peak);font-weight:700}.score-bad{color:var(--bad);font-weight:700}
   .foot{margin-top:22px;font-size:11px;color:var(--muted);text-align:center;line-height:1.7}
   .ttip{font-family:var(--sans);font-size:12px}
   .ttip .th{font-weight:700;margin-bottom:6px}
   .ttip .tr{display:flex;justify-content:space-between;gap:18px;line-height:1.6}
   .ttip .tr b{font-family:var(--mono);font-variant-numeric:tabular-nums}
   .banner{display:none;background:rgba(255,107,107,.1);border:1px solid rgba(255,107,107,.4);color:#FFC9C9;padding:12px 16px;border-radius:12px;font-size:12.5px;margin-bottom:14px}
+  @media (min-width:1500px){#btChart{height:560px!important}#dailyScoreChart{height:360px!important}}
   @media (max-width:1000px){.kpis{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:1fr}.row2{grid-template-columns:1fr}#mainChart{height:360px}}
   @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
   :focus-visible{outline:2px solid var(--peak);outline-offset:2px;border-radius:6px}
@@ -189,6 +197,12 @@
       <p class="desc">굵은 흰 선 = <b>실제 SMP</b>(기준선). 각 색선 = 모델 예측(p50). 두 선이 가까울수록 정확합니다. 아래 슬라이더로 기간을 좁혀 볼 수 있습니다. x축은 일자·시간대(hour-ending).</p>
       <div class="chart-tools" id="btTools"></div>
       <div id="btChart" style="width:100%;height:460px"></div>
+    </section>
+    <section class="card" style="margin-top:14px">
+      <h2>일자별 예측 점수</h2>
+      <p class="desc">각 날짜의 실측 대비 예측 정확도. 점수 = 100 - MAPE, 높을수록 좋습니다.</p>
+      <div id="dailyScoreChart" style="width:100%;height:320px"></div>
+      <div class="table-wrap" style="margin-top:10px"><table id="dailyScoreTable"></table></div>
     </section>
     <div class="row2">
       <section class="card"><h2>모델</h2><p class="desc">클릭하면 곡선 표시/숨김 · 실측 대비 MAPE</p><div class="mlist" id="btModelList"></div></section>
@@ -311,6 +325,8 @@
   });
 
   function initVisible(){ state.visible={}; reg().models.forEach(m=>state.visible[m.id]=true); }
+  function fmt(v,d=1){ return v==null||Number.isNaN(Number(v))?'—':Number(v).toFixed(d); }
+  function scoreClass(v){ return v==null?'':(v>=92?'score-good':v>=88?'score-warn':'score-bad'); }
 
   // charts
   const mainChart=echarts.init($('#mainChart'));
@@ -466,8 +482,45 @@
   $('#foot').textContent = `SMP 예측 툴 산출물 연결 · 대상일 ${D.meta.target_date} · 발표 ${(D.meta.issue_ts||'').slice(0,16).replace('T',' ')} · 생성 ${(D.meta.generated_at||'').replace('T',' ')}`;
 
   // ===== 검증(백테스트) 탭 =====
-  let btChart, btMape, btState={region:null, visible:{}, inited:false};
+  let btChart, btMape, dailyScoreChart, btState={region:null, visible:{}, inited:false};
   function btReg(){ const b=D.backtest||{}; return b[btState.region]||b[Object.keys(b)[0]]; }
+  function dayKey(label){ return String(label||'').slice(0,5); }
+  function dailyScores(){
+    const rg=btReg(); if(!rg) return [];
+    const hist=(D.score_history||[]).filter(r=>r.region===btState.region);
+    if(hist.length){
+      const days=[...new Set(hist.map(r=>r.target_date))].sort().reverse();
+      return days.map(day=>{
+        const modelRows=hist.filter(r=>r.target_date===day).map(r=>{
+          const src=(rg.models||[]).find(m=>m.id===r.model_id)||{};
+          return {id:r.model_id,name_ko:r.model_ko||src.name_ko||r.model_id,role:src.role||'model',
+            mape:r.mape,mae:r.mae,score:r.score};
+        });
+        const actualVals=hist.filter(r=>r.target_date===day&&r.actual_avg!=null).map(r=>r.actual_avg);
+        const actualAvg=actualVals.length?actualVals.reduce((a,c)=>a+c,0)/actualVals.length:null;
+        const best=modelRows.filter(x=>x.score!=null).sort((a,b)=>b.score-a.score)[0]||{};
+        const ens=modelRows.find(x=>x.role==='ensemble')||modelRows.find(x=>x.id===D.meta.ensemble_id)||{};
+        const champ=modelRows.find(x=>x.role==='champion')||modelRows.find(x=>x.id===D.meta.champion_id)||{};
+        return {day,actualAvg:actualAvg==null?null:+actualAvg.toFixed(1),models:modelRows,best,ens,champ};
+      });
+    }
+    const days=[...new Set((rg.timestamps||[]).map(dayKey))];
+    return days.sort().reverse().map(day=>{
+      const idxs=rg.timestamps.map((t,i)=>dayKey(t)===day?i:-1).filter(i=>i>=0);
+      const actualVals=idxs.map(i=>rg.actual[i]).filter(v=>v!=null);
+      const actualAvg=actualVals.length?actualVals.reduce((a,c)=>a+c,0)/actualVals.length:null;
+      const modelRows=(rg.models||[]).map(m=>{
+        const pairs=idxs.map(i=>({a:rg.actual[i],p:m.p50[i]})).filter(x=>x.a!=null&&x.p!=null&&Math.abs(x.a)>1);
+        const mape=pairs.length?pairs.reduce((a,x)=>a+Math.abs((x.p-x.a)/x.a),0)/pairs.length*100:null;
+        const mae=pairs.length?pairs.reduce((a,x)=>a+Math.abs(x.p-x.a),0)/pairs.length:null;
+        return {id:m.id,name_ko:m.name_ko,role:m.role,mape:mape==null?null:+mape.toFixed(2),mae:mae==null?null:+mae.toFixed(2),score:mape==null?null:+Math.max(0,100-mape).toFixed(1)};
+      });
+      const best=modelRows.filter(x=>x.score!=null).sort((a,b)=>b.score-a.score)[0]||{};
+      const ens=modelRows.find(x=>x.role==='ensemble')||{};
+      const champ=modelRows.find(x=>x.role==='champion')||{};
+      return {day,actualAvg:actualAvg==null?null:+actualAvg.toFixed(1),models:modelRows,best,ens,champ};
+    });
+  }
 
   function buildBtTools(){
     const rg=btReg(); if(!rg) return;
@@ -533,7 +586,7 @@
         <span class="avg num"></span>
         <span class="mape num" style="color:${mc}">${mp==null?'—':mp+'%'}</span>`;
       const toggle=()=>{ btState.visible[m.id]=!btState.visible[m.id];
-        row.classList.toggle('off',!btState.visible[m.id]); renderBtChart(); };
+        row.classList.toggle('off',!btState.visible[m.id]); renderBtChart(); renderDailyScores(); };
       row.onclick=toggle; row.onkeydown=e=>{if(e.key===' '||e.key==='Enter'){e.preventDefault();toggle();}};
       list.appendChild(row);
     });
@@ -555,14 +608,42 @@
         label:{show:true,position:'right',color:'#C3CCDA',fontFamily:'IBM Plex Mono',fontSize:11,formatter:'{c}%'}}]},true);
   }
 
-  function renderBt(){ buildBtTools(); renderBtChart(); renderBtPanel(); renderBtMape(); }
+  function renderDailyScores(){
+    const rows=dailyScores();
+    if(!rows.length) return;
+    const rg=btReg(), visibleIds=Object.keys(btState.visible).filter(id=>btState.visible[id]);
+    const models=(rg.models||[]).filter(m=>visibleIds.includes(m.id));
+    const series=models.map((m,i)=>({
+      name:m.name_ko,type:'line',smooth:true,symbol:'circle',symbolSize:5,
+      data:rows.map(r=>(r.models.find(x=>x.id===m.id)||{}).score),
+      lineStyle:{width:m.role==='ensemble'?2.8:m.role==='champion'?2.3:1.4,color:colorOf(m,i)},
+      itemStyle:{color:colorOf(m,i)}
+    }));
+    dailyScoreChart.setOption({
+      grid:{left:42,right:16,top:16,bottom:34},
+      tooltip:{trigger:'axis',backgroundColor:'#0E1116',borderColor:'#28313D',textStyle:{color:'#E8EDF4'},
+        formatter:function(ps){ let out=`<div class="ttip"><div class="th">${ps[0].axisValue} 일자별 점수</div>`;
+          ps.forEach(p=>{ if(p.data!=null) out+=`<div class="tr"><span style="color:${p.color}">● ${p.seriesName}</span><b>${p.data}점</b></div>`; });
+          return out+'</div>'; }},
+      xAxis:{type:'category',data:rows.map(r=>r.day),axisLine:{lineStyle:{color:'#28313D'}},axisTick:{show:false},axisLabel:{color:'#8C97A8',fontSize:12}},
+      yAxis:{type:'value',min:70,max:100,splitLine:{lineStyle:{color:'rgba(40,49,61,.6)'}},axisLabel:{color:'#8C97A8',fontSize:12,formatter:'{value}점'}},
+      series
+    },true);
+    $('#dailyScoreTable').innerHTML=`<thead><tr><th>일자</th><th>실측 평균</th><th>최고 모델</th><th>최고 점수</th><th>앙상블</th><th>챔피언</th></tr></thead><tbody>`+
+      rows.map(r=>`<tr><td>${r.day}</td><td class="num">${fmt(r.actualAvg)}</td><td>${r.best.name_ko||'—'}</td>
+        <td class="num ${scoreClass(r.best.score)}">${fmt(r.best.score)}점</td>
+        <td class="num ${scoreClass(r.ens.score)}">${fmt(r.ens.score)}점</td>
+        <td class="num ${scoreClass(r.champ.score)}">${fmt(r.champ.score)}점</td></tr>`).join('')+'</tbody>';
+  }
+
+  function renderBt(){ buildBtTools(); renderBtChart(); renderBtPanel(); renderBtMape(); renderDailyScores(); }
 
   function initBacktest(){
     if(btState.inited) return;
     const b=D.backtest||{};
     if(!Object.keys(b).length){ $('#view-backtest').innerHTML='<section class="card"><p class="desc">백테스트 데이터가 없습니다. build_dashboard_data.py 에 --backtest 를 지정해 data.js 를 다시 생성하세요.</p></section>'; btState.inited=true; return; }
     btState.region=Object.keys(b).includes('JEJU')?'JEJU':Object.keys(b)[0];
-    btChart=echarts.init($('#btChart')); btMape=echarts.init($('#btMapeChart'));
+    btChart=echarts.init($('#btChart')); btMape=echarts.init($('#btMapeChart')); dailyScoreChart=echarts.init($('#dailyScoreChart'));
     $('#btTitle').textContent=(D.meta.backtest_period||'').replace('SMP_','').replace('_backtest','').replace('_','-');
     btState.inited=true; renderBt();
   }
@@ -705,14 +786,14 @@
     $('#pageTitle').textContent=PAGE[v][0]; $('#pageSub').textContent=PAGE[v][1];
     // 지역 토글은 예측/검증에서만 의미
     $('#regionSeg').style.display=(v==='revenue'||v==='about')?'none':'';
-    if(v==='backtest'){ initBacktest(); setTimeout(()=>{btChart&&btChart.resize();btMape&&btMape.resize();},30); }
+    if(v==='backtest'){ initBacktest(); setTimeout(()=>{btChart&&btChart.resize();btMape&&btMape.resize();dailyScoreChart&&dailyScoreChart.resize();},30); }
     else if(v==='revenue'){ initRevenue(); }
     else if(v==='forecast'){ setTimeout(()=>{mainChart.resize();heatChart.resize();mapeChart.resize();},30); }
     const hash = v==='backtest' ? '#validation' : '#'+v;
     if(location.hash!==hash) history.replaceState(null,'',hash);
   }
   document.querySelectorAll('#nav a').forEach(a=>{ a.onclick=e=>{e.preventDefault();showView(a.dataset.view);}; });
-  window.addEventListener('resize',()=>{btChart&&btChart.resize();btMape&&btMape.resize();revChart&&revChart.resize();});
+  window.addEventListener('resize',()=>{btChart&&btChart.resize();btMape&&btMape.resize();dailyScoreChart&&dailyScoreChart.resize();revChart&&revChart.resize();});
 
   $('#genFoot').textContent='데이터 갱신 '+((D.meta.generated_at||'').slice(0,16).replace('T',' '));
   initVisible(); renderAll();
