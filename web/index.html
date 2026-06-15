@@ -55,13 +55,14 @@
   .main{min-width:0}
   .view{display:none}
   .view.active{display:block}
-  .rev-grid{display:grid;grid-template-columns:248px minmax(0,1fr);gap:14px}
+  .rev-grid{display:grid;grid-template-columns:310px minmax(0,1fr);gap:14px}
+  .rev-inputs{display:flex;flex-direction:column;gap:14px}
   .ipanel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px;display:flex;flex-direction:column;gap:13px}
   .ipanel h3{font-size:13.5px;margin:0;font-weight:700}
   .field .lab{display:flex;justify-content:space-between;font-size:12.5px;color:var(--muted)}
   .field .lab b{color:var(--text)}
   .field input[type=range]{width:100%;accent-color:var(--peak)}
-  .rev-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+  .rev-cards{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
   .rev-card{background:var(--panel-2);border-radius:10px;padding:12px}
   .rev-card .l{font-size:12px;color:var(--muted)}
   .rev-card .v{font-size:20px;font-weight:600;margin-top:3px}
@@ -123,6 +124,7 @@
   .ttip .tr b{font-family:var(--mono);font-variant-numeric:tabular-nums}
   .banner{display:none;background:rgba(255,107,107,.1);border:1px solid rgba(255,107,107,.4);color:#FFC9C9;padding:12px 16px;border-radius:12px;font-size:12.5px;margin-bottom:14px}
   @media (min-width:1500px){#btChart{height:560px!important}#dailyScoreChart{height:360px!important}}
+  @media (max-width:1200px){.rev-cards{grid-template-columns:repeat(3,1fr)}}
   @media (max-width:1000px){.kpis{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:1fr}.row2{grid-template-columns:1fr}#mainChart{height:360px}.model-strip{grid-template-columns:1fr}}
   @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
   :focus-visible{outline:2px solid var(--peak);outline-offset:2px;border-radius:6px}
@@ -229,41 +231,54 @@
     </div>
 
     <div class="rev-grid">
-      <div class="ipanel">
-        <h3>자원 · 정산 가정</h3>
-        <div class="field"><div class="lab"><span>발전 설비용량</span><span><b id="o-pv">5.0</b> MW</span></div><input type="range" id="r-pv" min="0" max="20" value="5" step="0.5"></div>
-        <div class="field"><div class="lab"><span>발전 이용률</span><span><b id="o-cf">14</b> %</span></div><input type="range" id="r-cf" min="5" max="30" value="14" step="1"></div>
-        <div class="field"><div class="lab"><span>ESS 용량</span><span><b id="o-ess">10</b> MWh</span></div><input type="range" id="r-ess" min="0" max="50" value="10" step="1"></div>
-        <div class="field"><div class="lab"><span>ESS 출력</span><span><b id="o-pwr">5</b> MW</span></div><input type="range" id="r-pwr" min="0" max="25" value="5" step="1"></div>
-        <div class="field"><div class="lab"><span>충방전 효율</span><span><b id="o-eff">88</b> %</span></div><input type="range" id="r-eff" min="70" max="95" value="88" step="1"></div>
-        <div class="field" style="border-top:1px solid var(--line);padding-top:11px"><div class="lab"><span>보조금(REC 등)</span><span><b id="o-sub">70</b> 원/kWh</span></div><input type="range" id="r-sub" min="0" max="150" value="70" step="5"></div>
-        <div class="field"><div class="lab"><span>기준용량가격(RCP)</span><span><b id="o-rcp">22.05</b> 원/kW-h</span></div><input type="range" id="r-rcp" min="0" max="40" value="22.05" step="0.05"></div>
-        <div class="field"><div class="lab"><span>RPCF</span><span><b id="o-rpcf">1.00</b></span></div><input type="range" id="r-rpcf" min="0" max="1" value="1" step="0.05"></div>
-        <div class="field"><div class="lab"><span>예상 MAPE</span><span><b id="o-mape">8</b> %</span></div><input type="range" id="r-mape" min="0" max="30" value="8" step="0.5"></div>
-        <label class="chip" style="justify-content:center;border-radius:9px"><input type="checkbox" id="r-dispatch" style="accent-color:var(--peak)">급전지시 발생</label>
-        <div class="field"><div class="lab"><span>실효용량비율</span><span><b id="o-eca">—</b></span></div></div>
+      <div class="rev-inputs">
+        <div class="ipanel">
+          <h3>PV 자원</h3>
+          <div class="field"><div class="lab"><span>PV 설비용량</span><span><b id="o-pv">5.0</b> MW</span></div><input type="range" id="r-pv" min="0" max="20" value="5" step="0.5"></div>
+          <div class="field"><div class="lab"><span>PV 이용률</span><span><b id="o-cf">14</b> %</span></div><input type="range" id="r-cf" min="5" max="30" value="14" step="1"></div>
+          <div class="field"><div class="lab"><span>보조금(REC 등)</span><span><b id="o-sub">70</b> 원/kWh</span></div><input type="range" id="r-sub" min="0" max="150" value="70" step="5"></div>
+          <div class="field"><div class="lab"><span>PV 실효용량률</span><span><b id="o-pv-eca">—</b></span></div></div>
+        </div>
+        <div class="ipanel">
+          <h3>ESS 자원</h3>
+          <div class="field"><div class="lab"><span>ESS 용량</span><span><b id="o-ess">10</b> MWh</span></div><input type="range" id="r-ess" min="0" max="50" value="10" step="1"></div>
+          <div class="field"><div class="lab"><span>ESS 출력</span><span><b id="o-pwr">5</b> MW</span></div><input type="range" id="r-pwr" min="0" max="25" value="5" step="1"></div>
+          <div class="field"><div class="lab"><span>충방전 효율</span><span><b id="o-eff">88</b> %</span></div><input type="range" id="r-eff" min="70" max="95" value="88" step="1"></div>
+          <div class="field"><div class="lab"><span>ESS 실효용량률</span><span><b id="o-ess-eca">—</b></span></div></div>
+        </div>
+        <div class="ipanel">
+          <h3>공통 정산 가정</h3>
+          <div class="field"><div class="lab"><span>기준용량가격(RCP)</span><span><b id="o-rcp">22.05</b> 원/kW-h</span></div><input type="range" id="r-rcp" min="0" max="40" value="22.05" step="0.05"></div>
+          <div class="field"><div class="lab"><span>RPCF</span><span><b id="o-rpcf">1.00</b></span></div><input type="range" id="r-rpcf" min="0" max="1" value="1" step="0.05"></div>
+          <div class="field"><div class="lab"><span>예상 MAPE</span><span><b id="o-mape">8</b> %</span></div><input type="range" id="r-mape" min="0" max="30" value="8" step="0.5"></div>
+          <label class="chip" style="justify-content:center;border-radius:9px"><input type="checkbox" id="r-dispatch" style="accent-color:var(--peak)">급전지시 발생</label>
+          <div class="field"><div class="lab"><span>임밸런스 허용오차</span><span><b id="o-tolerance">—</b></span></div></div>
+        </div>
       </div>
 
       <div style="display:flex;flex-direction:column;gap:14px">
         <div class="rev-cards">
-          <div class="rev-card"><div class="l">시장참여</div><div class="v num" id="rv-mkt">—</div><div class="u" id="ru-mkt">만원</div></div>
+          <div class="rev-card"><div class="l">PV 시장참여</div><div class="v num" id="rv-pv-mkt">—</div><div class="u" id="ru-pv-mkt">만원</div></div>
+          <div class="rev-card"><div class="l">PV 보조금</div><div class="v num" id="rv-pv-sub">—</div><div class="u" id="ru-pv-sub">만원</div></div>
+          <div class="rev-card"><div class="l">PV CP</div><div class="v num" id="rv-pv-cp">—</div><div class="u" id="ru-pv-cp">만원</div></div>
           <div class="rev-card"><div class="l">ESS 차익</div><div class="v num" id="rv-ess">—</div><div class="u" id="ru-ess">만원</div></div>
-          <div class="rev-card"><div class="l">보조금</div><div class="v num" id="rv-sub">—</div><div class="u" id="ru-sub">만원</div></div>
-          <div class="rev-card"><div class="l">CP 용량요금</div><div class="v num" id="rv-cp">—</div><div class="u" id="ru-cp">만원</div></div>
+          <div class="rev-card"><div class="l">ESS CP</div><div class="v num" id="rv-ess-cp">—</div><div class="u" id="ru-ess-cp">만원</div></div>
         </div>
         <div class="card" style="padding:16px 18px">
           <div style="display:flex;justify-content:space-between;align-items:baseline">
             <h2 id="rv-tlabel" style="margin:0">합산 수익</h2>
             <div style="font-size:25px;font-weight:600" class="num"><span id="rv-total">—</span><small style="font-size:13px;color:var(--muted)" id="ru-total"> 만원</small></div>
           </div>
+          <div class="meta" style="margin-top:6px"><span>임밸런스 차감 <b class="num" id="rv-penalty">—</b><b id="ru-penalty"> 만원</b></span></div>
           <div style="display:flex;height:13px;border-radius:6px;overflow:hidden;margin-top:12px;background:var(--panel-2)">
-            <div id="rb-mkt" style="background:#54D6A0"></div><div id="rb-ess" style="background:#F6C445"></div><div id="rb-sub" style="background:#6EA8FE"></div><div id="rb-cp" style="background:#C792EA"></div>
+            <div id="rb-pv-mkt" style="background:#54D6A0"></div><div id="rb-pv-sub" style="background:#6EA8FE"></div><div id="rb-pv-cp" style="background:#C792EA"></div><div id="rb-ess" style="background:#F6C445"></div><div id="rb-ess-cp" style="background:#FF9F6B"></div>
           </div>
           <div style="display:flex;gap:14px;margin-top:8px;font-size:11.5px;color:var(--muted);flex-wrap:wrap">
-            <span><span class="sw" style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#54D6A0;margin-right:4px"></span>시장참여</span>
-            <span><span class="sw" style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#F6C445;margin-right:4px"></span>ESS</span>
-            <span><span class="sw" style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#6EA8FE;margin-right:4px"></span>보조금</span>
-            <span><span class="sw" style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#C792EA;margin-right:4px"></span>CP</span>
+            <span><span class="sw" style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#54D6A0;margin-right:4px"></span>PV 시장</span>
+            <span><span class="sw" style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#6EA8FE;margin-right:4px"></span>PV 보조금</span>
+            <span><span class="sw" style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#C792EA;margin-right:4px"></span>PV CP</span>
+            <span><span class="sw" style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#F6C445;margin-right:4px"></span>ESS 차익</span>
+            <span><span class="sw" style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#FF9F6B;margin-right:4px"></span>ESS CP</span>
           </div>
         </div>
         <section class="card"><h2 id="essTitle">ESS 하루 운전 곡선</h2><p class="desc">굵은 선=해당일 SMP, 막대=충전(파랑)·방전(주황). 저가 충전 → 피크 방전.</p><div id="revEssChart" style="width:100%;height:300px"></div></section>
@@ -701,7 +716,7 @@
     if(bt){ const H=bt.timestamps, A=bt.actual;
       const days={};
       H.forEach((t,i)=>{ const d=t.split(' ')[0]; (days[d]=days[d]||[]).push(A[i]); });
-      Object.keys(days).slice(-7).forEach(d=>opts.push({key:d+' (실측)', smp:days[d].filter(v=>v!=null)}));
+      Object.keys(days).sort().reverse().slice(0,7).forEach(d=>opts.push({key:d+' (실측)', smp:days[d].filter(v=>v!=null)}));
     }
     window.__REVOPTS=opts;
     opts.forEach((o,i)=>{ const op=document.createElement('option'); op.value=i; op.textContent=o.key; sel.appendChild(op); });
@@ -744,23 +759,30 @@
     const usable=Math.min(ess,pwr*4);
     const essR=usable*1000*(hi-lo)*eff/10000*mult*SF;
     const month=revMonth(), bucket=essBucket(ess,pwr), ratio=EC_RATIO[month]||EC_RATIO[0];
-    const pvEff=pv*ratio.pv/100, essEff=pwr*ratio[bucket]/100, effCapMW=pvEff+essEff;
-    const cp=effCapMW*1000*rcp*24/10000*mult*rpcf*SF;
+    const pvEff=pv*ratio.pv/100, essEff=pwr*ratio[bucket]/100;
+    const pvCp=pvEff*1000*rcp*24/10000*mult*rpcf*SF;
+    const essCp=essEff*1000*rcp*24/10000*mult*rpcf*SF;
+    const cp=pvCp+essCp;
     const dispatch=$('#r-dispatch').checked, tolerance=dispatch?1.5:6.0;
     const excess=Math.max(mape-tolerance,0);
     const penalty=genMWhDay*1000*excess/100*avg/10000*mult;
     const total=mkt+essR+sb+cp-penalty;
-    $('#o-eca').textContent=`PV ${ratio.pv.toFixed(2)}% · ${bucket.replace('ess_','ESS ')} ${ratio[bucket].toFixed(2)}% · 허용 ${tolerance}%`;
+    $('#o-pv-eca').textContent=`${ratio.pv.toFixed(2)}%`;
+    $('#o-ess-eca').textContent=`${bucket.replace('ess_','')} · ${ratio[bucket].toFixed(2)}%`;
+    $('#o-tolerance').textContent=`${tolerance}%`;
 
     const fmt=x=>Math.round(x).toLocaleString();
-    $('#rv-mkt').textContent=fmt(mkt);$('#rv-ess').textContent=fmt(essR);
-    $('#rv-sub').textContent=fmt(sb);$('#rv-cp').textContent=fmt(cp);$('#rv-total').textContent=fmt(total);
-    ['mkt','ess','sub','cp'].forEach(k=>$('#ru-'+k).textContent=unit);
+    $('#rv-pv-mkt').textContent=fmt(mkt);$('#rv-pv-sub').textContent=fmt(sb);$('#rv-pv-cp').textContent=fmt(pvCp);
+    $('#rv-ess').textContent=fmt(essR);$('#rv-ess-cp').textContent=fmt(essCp);$('#rv-total').textContent=fmt(total);
+    $('#rv-penalty').textContent=fmt(penalty);
+    ['pv-mkt','pv-sub','pv-cp','ess','ess-cp'].forEach(k=>$('#ru-'+k).textContent=unit);
+    $('#ru-penalty').textContent=' '+unit;
     $('#ru-total').textContent=' '+unit;
     $('#rv-tlabel').textContent=(revView==='mon'?'월 합산 수익':'선택일 합산 수익');
-    const sum=Math.max(total,.001);
-    $('#rb-mkt').style.width=(mkt/sum*100)+'%';$('#rb-ess').style.width=(essR/sum*100)+'%';
-    $('#rb-sub').style.width=(sb/sum*100)+'%';$('#rb-cp').style.width=(cp/sum*100)+'%';
+    const positiveTotal=Math.max(mkt+sb+pvCp+essR+essCp,.001);
+    $('#rb-pv-mkt').style.width=(mkt/positiveTotal*100)+'%';$('#rb-pv-sub').style.width=(sb/positiveTotal*100)+'%';
+    $('#rb-pv-cp').style.width=(pvCp/positiveTotal*100)+'%';$('#rb-ess').style.width=(essR/positiveTotal*100)+'%';
+    $('#rb-ess-cp').style.width=(essCp/positiveTotal*100)+'%';
 
     drawRevEss(SMP,pwr);
   }
