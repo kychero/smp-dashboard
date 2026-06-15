@@ -207,7 +207,8 @@
       <h2>일자별 예측 점수</h2>
       <p class="desc">각 날짜의 실측 대비 예측 정확도. 점수 = 100 - MAPE, 높을수록 좋습니다.</p>
       <div id="dailyScoreChart" style="width:100%;height:320px"></div>
-      <div class="table-wrap" style="margin-top:10px"><table id="dailyScoreTable"></table></div>
+      <button class="chip" id="dailyScoreTableToggle" aria-expanded="false" style="margin-top:10px">표 펼치기</button>
+      <div class="table-wrap" id="dailyScoreTableWrap" style="margin-top:10px;display:none"><table id="dailyScoreTable"></table></div>
     </section>
     <section class="card" style="margin-top:14px"><h2>백테스트 정확도 (MAPE)</h2><p class="desc">실측 대비 모델별 평균 오차. 짧을수록(시안) 정확.</p><div id="btMapeChart" style="width:100%;height:300px"></div></section>
   </section><!-- /view-backtest -->
@@ -641,6 +642,18 @@
         <td class="num ${scoreClass(r.champ.score)}">${fmt(r.champ.score)}점</td></tr>`).join('')+'</tbody>';
   }
 
+  function initDailyScoreTableToggle(){
+    const btn=$('#dailyScoreTableToggle'), wrap=$('#dailyScoreTableWrap');
+    if(!btn||!wrap||btn.dataset.bound) return;
+    btn.dataset.bound='1';
+    btn.onclick=()=>{
+      const open=wrap.style.display==='none';
+      wrap.style.display=open?'block':'none';
+      btn.textContent=open?'표 접기':'표 펼치기';
+      btn.setAttribute('aria-expanded', String(open));
+    };
+  }
+
   function renderBt(){ buildBtTools(); renderBtChart(); renderBtPanel(); renderBtMape(); renderDailyScores(); }
 
   function initBacktest(){
@@ -650,6 +663,7 @@
     btState.region=Object.keys(b).includes('JEJU')?'JEJU':Object.keys(b)[0];
     btChart=echarts.init($('#btChart')); btMape=echarts.init($('#btMapeChart')); dailyScoreChart=echarts.init($('#dailyScoreChart'));
     $('#btTitle').textContent=(D.meta.backtest_period||'').replace('SMP_','').replace('_backtest','').replace('_','-');
+    initDailyScoreTableToggle();
     btState.inited=true; renderBt();
   }
 
