@@ -491,7 +491,7 @@
     const rg=btReg(); if(!rg) return [];
     const hist=(D.score_history||[]).filter(r=>r.region===btState.region);
     if(hist.length){
-      const days=[...new Set(hist.map(r=>r.target_date))].sort().reverse();
+      const days=[...new Set(hist.map(r=>r.target_date))].sort();
       return days.map(day=>{
         const modelRows=hist.filter(r=>r.target_date===day).map(r=>{
           const src=(rg.models||[]).find(m=>m.id===r.model_id)||{};
@@ -507,7 +507,7 @@
       });
     }
     const days=[...new Set((rg.timestamps||[]).map(dayKey))];
-    return days.sort().reverse().map(day=>{
+    return days.sort().map(day=>{
       const idxs=rg.timestamps.map((t,i)=>dayKey(t)===day?i:-1).filter(i=>i>=0);
       const actualVals=idxs.map(i=>rg.actual[i]).filter(v=>v!=null);
       const actualAvg=actualVals.length?actualVals.reduce((a,c)=>a+c,0)/actualVals.length:null;
@@ -622,11 +622,14 @@
       itemStyle:{color:colorOf(m,i)}
     }));
     dailyScoreChart.setOption({
-      grid:{left:42,right:16,top:16,bottom:34},
+      grid:{left:42,right:16,top:16,bottom:62},
       tooltip:{trigger:'axis',backgroundColor:'#0E1116',borderColor:'#28313D',textStyle:{color:'#E8EDF4'},
         formatter:function(ps){ let out=`<div class="ttip"><div class="th">${ps[0].axisValue} 일자별 점수</div>`;
           ps.forEach(p=>{ if(p.data!=null) out+=`<div class="tr"><span style="color:${p.color}">● ${p.seriesName}</span><b>${p.data}점</b></div>`; });
           return out+'</div>'; }},
+      dataZoom:[{type:'slider',start:Math.max(0,100-(14/Math.max(rows.length,1))*100),end:100,height:18,bottom:24,borderColor:'#28313D',
+        textStyle:{color:'#8C97A8'},dataBackground:{lineStyle:{color:'#39C2D6'},areaStyle:{color:'rgba(57,194,214,.12)'}}},
+        {type:'inside'}],
       xAxis:{type:'category',data:rows.map(r=>r.day),axisLine:{lineStyle:{color:'#28313D'}},axisTick:{show:false},axisLabel:{color:'#8C97A8',fontSize:12}},
       yAxis:{type:'value',min:70,max:100,splitLine:{lineStyle:{color:'rgba(40,49,61,.6)'}},axisLabel:{color:'#8C97A8',fontSize:12,formatter:'{value}점'}},
       series
