@@ -104,6 +104,10 @@
   .m.ens{background:linear-gradient(180deg,rgba(255,231,168,.08),var(--panel-2));border-color:rgba(255,231,168,.25)}
   .legend-foot{font-size:10.5px;color:var(--muted);margin-top:10px;line-height:1.6}
   .pill{font-family:var(--mono);font-size:11px;padding:2px 7px;border-radius:6px;background:var(--panel-2);border:1px solid var(--line)}
+  .model-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:6px;margin:8px 0 12px}
+  .model-strip .m{grid-template-columns:14px minmax(0,1fr) auto;padding:8px 9px}
+  .model-strip .m .avg{display:none}
+  .model-strip .m .nm{font-size:12.5px}
   .row2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
   .table-wrap{overflow:auto;border:1px solid var(--line);border-radius:10px;background:rgba(14,17,22,.24)}
   table{width:100%;border-collapse:collapse;font-size:12px;min-width:760px}
@@ -119,7 +123,7 @@
   .ttip .tr b{font-family:var(--mono);font-variant-numeric:tabular-nums}
   .banner{display:none;background:rgba(255,107,107,.1);border:1px solid rgba(255,107,107,.4);color:#FFC9C9;padding:12px 16px;border-radius:12px;font-size:12.5px;margin-bottom:14px}
   @media (min-width:1500px){#btChart{height:560px!important}#dailyScoreChart{height:360px!important}}
-  @media (max-width:1000px){.kpis{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:1fr}.row2{grid-template-columns:1fr}#mainChart{height:360px}}
+  @media (max-width:1000px){.kpis{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:1fr}.row2{grid-template-columns:1fr}#mainChart{height:360px}.model-strip{grid-template-columns:1fr}}
   @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
   :focus-visible{outline:2px solid var(--peak);outline-offset:2px;border-radius:6px}
 </style>
@@ -196,6 +200,7 @@
       <h2>실측 SMP 대비 모델 예측 (백테스트 <span id="btTitle">2026-05</span>)</h2>
       <p class="desc">굵은 흰 선 = <b>실제 SMP</b>(기준선). 각 색선 = 모델 예측(p50). 두 선이 가까울수록 정확합니다. 아래 슬라이더로 기간을 좁혀 볼 수 있습니다. x축은 일자·시간대(hour-ending).</p>
       <div class="chart-tools" id="btTools"></div>
+      <div class="model-strip" id="btModelList"></div>
       <div id="btChart" style="width:100%;height:460px"></div>
     </section>
     <section class="card" style="margin-top:14px">
@@ -204,10 +209,7 @@
       <div id="dailyScoreChart" style="width:100%;height:320px"></div>
       <div class="table-wrap" style="margin-top:10px"><table id="dailyScoreTable"></table></div>
     </section>
-    <div class="row2">
-      <section class="card"><h2>모델</h2><p class="desc">클릭하면 곡선 표시/숨김 · 실측 대비 MAPE</p><div class="mlist" id="btModelList"></div></section>
-      <section class="card"><h2>백테스트 정확도 (MAPE)</h2><p class="desc">실측 대비 모델별 평균 오차. 짧을수록(시안) 정확.</p><div id="btMapeChart" style="width:100%;height:300px"></div></section>
-    </div>
+    <section class="card" style="margin-top:14px"><h2>백테스트 정확도 (MAPE)</h2><p class="desc">실측 대비 모델별 평균 오차. 짧을수록(시안) 정확.</p><div id="btMapeChart" style="width:100%;height:300px"></div></section>
   </section><!-- /view-backtest -->
 
   <section id="view-revenue" class="view">
