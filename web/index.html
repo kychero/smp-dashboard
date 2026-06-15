@@ -218,7 +218,10 @@
   <section id="view-revenue" class="view">
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:14px">
       <div class="meta">
+        <span>데이터 <select id="revSource" style="background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:5px 8px;font-family:var(--sans)"><option value="actual">히스토리 실측 수익</option><option value="forecast">예측 SMP 수익</option></select></span>
         <span>날짜 <select id="revDay" style="background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:5px 8px;font-family:var(--sans)"></select></span>
+        <span id="revModelWrap">ESS 스케줄 모델 <select id="revModel" style="background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:5px 8px;font-family:var(--sans)"></select></span>
+        <span id="revBasis">기준 데이터 —</span>
       </div>
       <div style="display:flex;gap:6px">
         <button class="chip" id="sc-cons" aria-pressed="false">보수</button>
@@ -281,10 +284,10 @@
             <span><span class="sw" style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#FF9F6B;margin-right:4px"></span>ESS CP</span>
           </div>
         </div>
-        <section class="card"><h2 id="essTitle">ESS 하루 운전 곡선</h2><p class="desc">굵은 선=해당일 SMP, 막대=충전(파랑)·방전(주황). 저가 충전 → 피크 방전.</p><div id="revEssChart" style="width:100%;height:300px"></div></section>
+        <section class="card"><h2 id="essTitle">ESS 하루 운전 곡선</h2><p class="desc" id="essDesc">굵은 선=선택한 SMP, 막대=충전(파랑)·방전(주황). 저가 충전 → 피크 방전.</p><div id="revEssChart" style="width:100%;height:300px"></div></section>
       </div>
     </div>
-    <p class="foot">* MVP 추정입니다. CP는 research_ESS.md의 제주 RCP 22.05원/kW-h와 '25/'26 월별 실효용량비율(PV/ESS 2h·4h·6h·8h)을 적용합니다. 임밸런스 허용오차는 급전지시 ON 1.5%, OFF 6%입니다.</p>
+    <p class="foot">* MVP 추정입니다. 히스토리 수익은 실측 SMP로 정산하고 ESS 충방전 시간만 선택 모델의 예측 SMP로 잡습니다. CP는 research_ESS.md의 제주 RCP 22.05원/kW-h와 '25/'26 월별 실효용량비율(PV/ESS 2h·4h·6h·8h)을 적용합니다. 임밸런스 허용오차는 급전지시 ON 1.5%, OFF 6%입니다.</p>
   </section><!-- /view-revenue -->
 
   <section id="view-about" class="view">
@@ -294,6 +297,10 @@
       <div class="row2" style="margin-top:8px">
         <div><h2 style="font-size:13px">데이터 출처</h2><p class="desc" style="font-size:12.5px;line-height:1.8">· SMP 실측: EPSIS(전력거래소)<br>· 기상: Open-Meteo<br>· 수요·태양광: EPSIS 부하 · 일사량 proxy</p></div>
         <div><h2 style="font-size:13px">정산 규칙 요약</h2><p class="desc" style="font-size:12.5px;line-height:1.8">· 에너지정산금 = 하루전낙찰 × 하루전가 + (실시간−낙찰) × 실시간가<br>· 용량정산금 = 기준용량가격 × Min(공급가능, 실효용량)<br>· 실효용량: 발전원별 매년 차등, ESS는 지속시간(4h↑) 높게 인정<br>· 임밸런스 페널티: 예측오차가 클수록 수익 차감(MAPE 직결)</p></div>
+      </div>
+      <div class="row2" style="margin-top:8px">
+        <div><h2 style="font-size:13px">수익 추정 산식</h2><p class="desc" style="font-size:12.5px;line-height:1.8">· 히스토리 수익은 PV 시장참여·보조금·CP·임밸런스와 ESS 정산 가격을 실측 SMP로 산출합니다.<br>· ESS 스케줄은 선택 모델의 예측 SMP를 낮은 25% 구간 충전, 높은 22% 구간 방전으로 변환합니다. 차익은 해당 충전·방전 시간의 실측 SMP 평균 차이로 정산합니다.<br>· PV 시장참여 = PV MW × 24h × 이용률 × 실측 평균 SMP × 시나리오 계수<br>· ESS 차익 = Min(ESS MWh, ESS MW × 충방전 시간) × (실측 방전평균가 × 효율 − 실측 충전평균가) × 시나리오 계수<br>· CP = 설비 MW × 실효용량률 × 1,000kW/MW × RCP × 24h × RPCF × 시나리오 계수<br>· 임밸런스 차감 = PV 발전량 × Max(예상 MAPE − 허용오차, 0) × 실측 평균 SMP</p></div>
+        <div><h2 style="font-size:13px">시나리오와 월 환산</h2><p class="desc" style="font-size:12.5px;line-height:1.8">· 보수/기준/낙관은 선택일의 시장·보조금·CP·ESS 총액에 각각 0.8× / 1.0× / 1.2× 계수를 적용합니다. 임밸런스 차감에는 시나리오 계수를 적용하지 않습니다.<br>· 월 환산은 우측 “월 환산” 선택 시 선택일 수익 구성요소와 임밸런스 차감을 각각 30배 한 값입니다. 실제 월별 일수, 정산 캘린더, 가동 제한은 반영하지 않습니다.<br>· 우측 월별 수익 막대는 30배 환산된 PV 시장, PV 보조금, PV CP, ESS 차익, ESS CP의 합계 내 비중입니다.<br>· 실효용량률은 선택 날짜의 월과 ESS 지속시간 버킷(2h/4h/6h/8h)에 따라 적용합니다. 급전지시 ON이면 임밸런스 허용오차 1.5%, OFF이면 6.0%를 적용합니다.</p></div>
       </div>
       <p class="foot" style="text-align:left">모델 8종: 계절나이브 · SARIMAX(Ridge ARX) · 펀더멘털 isotonic · LightGBM 점예측(챔피언) · LightGBM 분위수 · TFT(MLP) · 검증가중 앙상블 · 제로레짐 LightGBM. 본 화면 수치는 추정이며 투자 판단의 근거가 아닙니다.</p>
     </section>
@@ -707,25 +714,112 @@
   function champP50(){ const m=(reg().models||[]).find(x=>x.role==='champion')||reg().models[0];
     return m? m.p50.filter(v=>v!=null) : []; }
 
+  function modelLabel(m){ return `${m.name_ko||m.name||m.id} (${m.id})`; }
+  function revRegionBacktest(){ return (D.backtest&&D.backtest[state.region])||null; }
+  function revDayFromTimestamp(ts){ return String(ts||'').split(' ')[0]; }
+  function revBacktestDayForIndex(bt,i){
+    const first=(bt.timestamps||[])[Math.floor(i/24)*24] || (bt.timestamps||[])[i];
+    return revDayFromTimestamp(first);
+  }
+  function revCurrentForecastOptions(){
+    const target=D.meta.target_date;
+    if(!target) return [];
+    return (reg().models||[]).map(m=>({
+      source:'forecast', group:'내일 예측', day:target, model_id:m.id, model_name:modelLabel(m),
+      label:`${target} · 내일 예측`, revenueSmp:(m.p50||[]).filter(v=>v!=null), scheduleSmp:(m.p50||[]).filter(v=>v!=null)
+    })).filter(o=>o.revenueSmp.length&&o.scheduleSmp.length);
+  }
+  function revBacktestSeriesByDay(){
+    const bt=revRegionBacktest(); if(!bt) return {actual:{}, forecast:{}};
+    const actual={}, forecast={};
+    (bt.timestamps||[]).forEach((ts,i)=>{
+      const d=revDayFromTimestamp(ts)||revBacktestDayForIndex(bt,i); if(!d) return;
+      (actual[d]=actual[d]||[]).push(bt.actual?bt.actual[i]:null);
+    });
+    (bt.models||[]).forEach(m=>{
+      (bt.timestamps||[]).forEach((ts,i)=>{
+        const d=revDayFromTimestamp(ts)||revBacktestDayForIndex(bt,i); if(!d) return;
+        const key=d+'|'+m.id;
+        forecast[key]=forecast[key]||{source:'forecast', group:'예측 히스토리', day:d, model_id:m.id, model_name:modelLabel(m), label:`${d} · 예측 히스토리`, revenueSmp:[], scheduleSmp:[]};
+        forecast[key].revenueSmp.push(bt.actual?bt.actual[i]:null);
+        forecast[key].scheduleSmp.push(m.p50?m.p50[i]:null);
+      });
+    });
+    Object.keys(actual).forEach(d=>{ actual[d]=actual[d].filter(v=>v!=null); });
+    Object.keys(forecast).forEach(k=>{
+      forecast[k].revenueSmp=forecast[k].revenueSmp.filter(v=>v!=null);
+      forecast[k].scheduleSmp=forecast[k].scheduleSmp.filter(v=>v!=null);
+    });
+    return {actual, forecast};
+  }
+  function revBuildOptions(){
+    const split=revBacktestSeriesByDay();
+    const actual=Object.keys(split.actual).filter(d=>split.actual[d].length).sort().reverse()
+      .map(d=>({source:'actual', group:'히스토리 실측 수익', day:d, model_id:'actual', model_name:'실측 SMP', label:`${d} · 실측 수익`, revenueSmp:split.actual[d], scheduleSmp:split.actual[d]}));
+    const historicalForecast=Object.values(split.forecast).filter(o=>o.revenueSmp.length&&o.scheduleSmp.length)
+      .sort((a,b)=>(b.day.localeCompare(a.day)||a.model_id.localeCompare(b.model_id)));
+    return {actual, forecast:revCurrentForecastOptions(), schedule:historicalForecast};
+  }
+
   function buildRevDays(){
-    const sel=$('#revDay'); sel.innerHTML='';
-    // 내일 예측(챔피언) 곡선을 기본 날짜로, 백테스트 마지막 7일을 선택지로 추가
-    const opts=[];
-    opts.push({key:D.meta.target_date+' (예측)', smp:champP50()});
-    const bt=(D.backtest&&D.backtest[state.region])||null;
-    if(bt){ const H=bt.timestamps, A=bt.actual;
-      const days={};
-      H.forEach((t,i)=>{ const d=t.split(' ')[0]; (days[d]=days[d]||[]).push(A[i]); });
-      Object.keys(days).sort().reverse().slice(0,7).forEach(d=>opts.push({key:d+' (실측)', smp:days[d].filter(v=>v!=null)}));
-    }
+    const sourceSel=$('#revSource'), daySel=$('#revDay'), modelSel=$('#revModel'), modelWrap=$('#revModelWrap');
+    const source=sourceSel.value||'actual';
+    const all=revBuildOptions();
+    const opts=(all[source]&&all[source].length)?all[source]:all.forecast;
+    const sourceInUse=(all[source]&&all[source].length)?source:'forecast';
+    if(sourceSel.value!==sourceInUse) sourceSel.value=sourceInUse;
+    const previousDay=daySel.value, previousModel=modelSel.value;
+    const days=[...new Set(opts.map(o=>o.day))].sort().reverse();
+    daySel.innerHTML='';
+    days.forEach(d=>{
+      const op=document.createElement('option');
+      const sample=opts.find(o=>o.day===d);
+      op.value=d; op.textContent=sample&&sample.group?`${d} · ${sample.group}`:d;
+      daySel.appendChild(op);
+    });
+    daySel.value=days.includes(previousDay)?previousDay:(days[0]||'');
+    const dayOpts=opts.filter(o=>o.day===daySel.value);
+    const forecastForDay=(all.schedule||[]).filter(o=>o.day===daySel.value&&o.scheduleSmp&&o.scheduleSmp.length);
+    modelWrap.style.display=(sourceInUse==='forecast'||forecastForDay.length)?'':'none';
+    modelSel.innerHTML='';
+    const models=sourceInUse==='forecast'?dayOpts:forecastForDay;
+    const modelRows=models.length?models:[{model_id:'actual',model_name:'실측 SMP'}];
+    modelRows.forEach(o=>{ const op=document.createElement('option'); op.value=o.model_id; op.textContent=o.model_name; modelSel.appendChild(op); });
+    const defaultModel = modelRows.find(o=>o.model_id===D.meta.ensemble_id)?.model_id
+      || modelRows.find(o=>o.model_id===D.meta.champion_id)?.model_id
+      || modelRows[0]?.model_id || '';
+    modelSel.value=modelRows.some(o=>o.model_id===previousModel)?previousModel:defaultModel;
     window.__REVOPTS=opts;
-    opts.forEach((o,i)=>{ const op=document.createElement('option'); op.value=i; op.textContent=o.key; sel.appendChild(op); });
-    sel.value=0;
+    window.__REVSCHEDULEOPTS=forecastForDay;
+    updateRevBasis();
+  }
+
+  function selectedRevOption(){
+    const source=$('#revSource').value, day=$('#revDay').value, model=$('#revModel').value;
+    const opts=window.__REVOPTS||[];
+    const selected=opts.find(o=>o.source===source&&o.day===day&&(source==='actual'||o.model_id===model))
+      || opts.find(o=>o.day===day)
+      || opts[0]
+      || {source:'forecast', day:D.meta.target_date||'', model_id:D.meta.champion_id, model_name:'챔피언', label:D.meta.target_date||'', revenueSmp:champP50(), scheduleSmp:champP50()};
+    if(source==='actual'){
+      const sched=(window.__REVSCHEDULEOPTS||[]).find(o=>o.day===day&&o.model_id===model);
+      if(sched) return {...selected, scheduleSmp:sched.scheduleSmp, schedule_model_id:sched.model_id, schedule_model_name:sched.model_name};
+    }
+    return selected;
+  }
+  function updateRevBasis(opt){
+    const basis=opt||selectedRevOption();
+    const revenueSource=basis.source==='actual'?'수익=실측 SMP':`수익=예측 SMP · ${basis.model_name||basis.model_id}`;
+    const scheduleSource=basis.source==='actual'
+      ? `ESS 스케줄=${basis.schedule_model_name||basis.schedule_model_id||'선택 모델'} 예측`
+      : `ESS 스케줄=${basis.model_name||basis.model_id} 예측`;
+    $('#revBasis').textContent=`기준 데이터 ${basis.label||basis.day||'—'} · ${revenueSource} · ${scheduleSource}`;
   }
 
   function revMonth(){
-    const opt=(window.__REVOPTS||[])[$('#revDay').value]||{};
-    const key=String(opt.key||D.meta.target_date||'');
+    const opt=selectedRevOption();
+    updateRevBasis(opt);
+    const key=String(opt.day||D.meta.target_date||'');
     let m=key.match(/^\d{4}-(\d{2})-/);
     if(!m) m=key.match(/^(\d{2})-/);
     return m?Number(m[1]):0;
@@ -738,6 +832,25 @@
     if(dur<7) return 'ess_6h';
     return 'ess_8h';
   }
+  function cleanSeries(values){
+    return (values||[]).map(v=>Number(v)).filter(v=>Number.isFinite(v));
+  }
+  function essPlan(schedulePrices, revenuePrices, pwr, ess, eff){
+    const n=Math.min(schedulePrices.length, revenuePrices.length);
+    if(!n||pwr<=0||ess<=0) return {schedule:revenuePrices.map(()=>0), revenue:0, chargeAvg:null, dischargeAvg:null};
+    const usable=Math.min(ess,pwr*4);
+    const activeHours=Math.max(1,Math.ceil(usable/pwr));
+    const order=[...Array(n).keys()].sort((a,b)=>schedulePrices[a]-schedulePrices[b]);
+    const chargeIdx=new Set(order.slice(0,activeHours));
+    const dischargeIdx=new Set(order.slice(-activeHours));
+    const schedule=[...Array(n).keys()].map(i=>chargeIdx.has(i)?-pwr:(dischargeIdx.has(i)?pwr:0));
+    const chargePrices=[...chargeIdx].map(i=>revenuePrices[i]).filter(v=>Number.isFinite(v));
+    const dischargePrices=[...dischargeIdx].map(i=>revenuePrices[i]).filter(v=>Number.isFinite(v));
+    const avg=arr=>arr.length?arr.reduce((a,c)=>a+c,0)/arr.length:null;
+    const chargeAvg=avg(chargePrices), dischargeAvg=avg(dischargePrices);
+    const spread=chargeAvg==null||dischargeAvg==null?0:(dischargeAvg*eff-chargeAvg);
+    return {schedule, revenue:Math.max(0,usable*1000*spread), chargeAvg, dischargeAvg};
+  }
 
   function calcRev(){
     const g=id=>+$('#'+id).value;
@@ -748,16 +861,17 @@
     $('#o-sub').textContent=sub;$('#o-rcp').textContent=rcp.toFixed(2);$('#o-rpcf').textContent=rpcf.toFixed(2);$('#o-mape').textContent=mape.toFixed(1);
 
     const SF={cons:0.8,base:1.0,opt:1.2}[revScn];
-    const opt=(window.__REVOPTS||[])[$('#revDay').value]||{smp:champP50()};
-    const SMP=opt.smp.length?opt.smp:[80,75,70,90,120,100];
-    const avg=SMP.reduce((a,c)=>a+c,0)/SMP.length, lo=Math.min(...SMP), hi=Math.max(...SMP);
+    const opt=selectedRevOption();
+    const revenueSmp=cleanSeries(opt.revenueSmp).length?cleanSeries(opt.revenueSmp):[80,75,70,90,120,100];
+    const scheduleSmp=cleanSeries(opt.scheduleSmp).length?cleanSeries(opt.scheduleSmp):revenueSmp;
+    const avg=revenueSmp.reduce((a,c)=>a+c,0)/revenueSmp.length;
     const mult=(revView==='mon')?30:1, unit=(revView==='mon')?'만원/월':'만원';
 
     const genMWhDay=pv*24*cf;
     const mkt=genMWhDay*1000*avg/10000*mult*SF;
     const sb=genMWhDay*1000*sub/10000*mult*SF;
-    const usable=Math.min(ess,pwr*4);
-    const essR=usable*1000*(hi-lo)*eff/10000*mult*SF;
+    const plan=essPlan(scheduleSmp,revenueSmp,pwr,ess,eff);
+    const essR=plan.revenue/10000*mult*SF;
     const month=revMonth(), bucket=essBucket(ess,pwr), ratio=EC_RATIO[month]||EC_RATIO[0];
     const pvEff=pv*ratio.pv/100, essEff=pwr*ratio[bucket]/100;
     const pvCp=pvEff*1000*rcp*24/10000*mult*rpcf*SF;
@@ -784,23 +898,26 @@
     $('#rb-pv-cp').style.width=(pvCp/positiveTotal*100)+'%';$('#rb-ess').style.width=(essR/positiveTotal*100)+'%';
     $('#rb-ess-cp').style.width=(essCp/positiveTotal*100)+'%';
 
-    drawRevEss(SMP,pwr);
+    drawRevEss(revenueSmp,scheduleSmp,plan,opt);
   }
 
-  function drawRevEss(SMP,pwr){
-    const s=[...SMP].sort((a,b)=>a-b), n=s.length;
-    const chTh=s[Math.floor(n*0.25)], disTh=s[Math.floor(n*0.78)];
-    const sched=SMP.map(p=> p<=chTh?-pwr:(p>=disTh?pwr:0));
+  function drawRevEss(revenueSmp,scheduleSmp,plan,opt){
+    const sched=plan.schedule||scheduleSmp.map(()=>0);
     const colors=sched.map(v=> v<0?'#378ADD':(v>0?'#EF9F27':'rgba(150,150,150,.22)'));
-    $('#essTitle').textContent='ESS 하루 운전 곡선 · '+(((window.__REVOPTS||[])[$('#revDay').value]||{}).key||'');
+    const sourceName=opt.source==='actual'
+      ? `수익=실측 SMP · 스케줄=${opt.schedule_model_name||opt.schedule_model_id||'선택 모델'} 예측`
+      : `수익/스케줄=${opt.model_name||opt.model_id} 예측`;
+    $('#essTitle').textContent=`ESS 하루 운전 곡선 · ${opt.day||''}`;
+    $('#essDesc').textContent=`기준 데이터: ${sourceName}. 선=정산 SMP, 막대=예측 기반 충전(파랑)·방전(주황).`;
     if(!revChart) revChart=echarts.init($('#revEssChart'));
     revChart.setOption({grid:{left:46,right:44,top:12,bottom:28},
       tooltip:{trigger:'axis',backgroundColor:'#0E1116',borderColor:'#28313D',textStyle:{color:'#E8EDF4'}},
       legend:{show:false},
-      xAxis:{type:'category',data:SMP.map((_,i)=>i+1),boundaryGap:true,axisTick:{show:false},axisLine:{lineStyle:{color:'#28313D'}},axisLabel:{color:'#8C97A8',fontSize:10}},
+      xAxis:{type:'category',data:revenueSmp.map((_,i)=>i+1),boundaryGap:true,axisTick:{show:false},axisLine:{lineStyle:{color:'#28313D'}},axisLabel:{color:'#8C97A8',fontSize:10}},
       yAxis:[{type:'value',position:'left',splitLine:{lineStyle:{color:'rgba(40,49,61,.5)'}},axisLabel:{color:'#8C97A8',fontSize:10,formatter:'{value}MW'}},
         {type:'value',position:'right',splitLine:{show:false},axisLabel:{color:'#8C97A8',fontSize:10,formatter:'{value}원'}}],
-      series:[{name:'SMP',type:'line',yAxisIndex:1,data:SMP,smooth:true,symbol:'none',lineStyle:{width:2,color:'#54D6A0'}},
+      series:[{name:'정산 SMP',type:'line',yAxisIndex:1,data:revenueSmp,smooth:true,symbol:'none',lineStyle:{width:2,color:'#54D6A0'}},
+        {name:'스케줄 예측 SMP',type:'line',yAxisIndex:1,data:scheduleSmp,smooth:true,symbol:'none',lineStyle:{width:1.4,color:'#FFE7A8',type:'dashed',opacity:.72}},
         {name:'충방전',type:'bar',yAxisIndex:0,data:sched,itemStyle:{color:p=>colors[p.dataIndex]},barWidth:'70%'}]},true);
   }
 
@@ -808,7 +925,9 @@
     if(!revInited){
       ['r-pv','r-cf','r-ess','r-pwr','r-eff','r-sub','r-rcp','r-rpcf','r-mape'].forEach(id=>$('#'+id).addEventListener('input',calcRev));
       $('#r-dispatch').addEventListener('change',calcRev);
-      $('#revDay').addEventListener('change',calcRev);
+      $('#revSource').addEventListener('change',()=>{ buildRevDays(); calcRev(); });
+      $('#revDay').addEventListener('change',()=>{ buildRevDays(); calcRev(); });
+      $('#revModel').addEventListener('change',calcRev);
       const sc=(s)=>{revScn=s;['cons','base','opt'].forEach(k=>$('#sc-'+k).setAttribute('aria-pressed',k===s));calcRev();};
       $('#sc-cons').onclick=()=>sc('cons');$('#sc-base').onclick=()=>sc('base');$('#sc-opt').onclick=()=>sc('opt');
       const vw=(v)=>{revView=v;$('#vw-day').setAttribute('aria-pressed',v==='day');$('#vw-mon').setAttribute('aria-pressed',v==='mon');calcRev();};
