@@ -14,7 +14,7 @@
     --out web/data.js
 """
 from __future__ import annotations
-import argparse, json, datetime as dt
+import argparse, csv, json, datetime as dt
 from pathlib import Path
 import openpyxl
 
@@ -122,7 +122,71 @@ def load_backtest(path: Path) -> dict:
     return {"metrics": metrics, "predictions": predictions}
 
 
-def build(forecast: Path, backtest: Path | None, champion: str, risk: str) -> dict:
+def load_score_history(path: Path | None) -> list[dict]:
+    if not path or not path.exists():
+        return []
+    rows = []
+    with path.open("r", encoding="utf-8-sig", newline="") as f:
+        for row in csv.DictReader(f):
+            rows.append({
+                "target_date": row.get("target_date"),
+                "region": row.get("region"),
+                "issue_hour": row.get("issue_hour"),
+                "model_id": row.get("model_id"),
+                "model_name": row.get("model_name"),
+                "model_ko": row.get("model_ko") or row.get("model_name"),
+                "n_hours": int(float(row["n_hours"])) if row.get("n_hours") else None,
+                "actual_avg": _num(row.get("actual_avg")),
+                "forecast_avg": _num(row.get("forecast_avg")),
+                "bias": _num(row.get("bias")),
+                "mae": _num(row.get("mae")),
+                "rmse": _num(row.get("rmse")),
+                "mape": _num(row.get("mape")),
+                "smape": _num(row.get("smape")),
+                "score": _num(row.get("score"), 1),
+            })
+    rows.sort(key=lambda r: r.get("score") if r.get("score") is not None else -1, reverse=True)
+    rows.sort(key=lambda r: r.get("region") or "")
+    rows.sort(key=lambda r: r.get("target_date") or "", reverse=True)
+    return rows
+
+
+def load_revenue_history(path: Path | None) -> list[dict]:
+    if not path or not path.exists():
+        return []
+    rows = []
+    with path.open("r", encoding="utf-8-sig", newline="") as f:
+        for row in csv.DictReader(f):
+            rows.append({
+                "target_date": row.get("target_date"),
+                "region": row.get("region"),
+                "source": row.get("source"),
+                "issue_hour": row.get("issue_hour") or None,
+                "model_id": row.get("model_id"),
+                "model_name": row.get("model_name"),
+                "n_hours": int(float(row["n_hours"])) if row.get("n_hours") else None,
+                "avg_smp": _num(row.get("avg_smp")),
+                "spread_smp": _num(row.get("spread_smp")),
+                "mape_pct": _num(row.get("mape_pct")),
+                "pv_effective_mw": _num(row.get("pv_effective_mw")),
+                "ess_effective_mw": _num(row.get("ess_effective_mw")),
+                "market_revenue_krw": _num(row.get("market_revenue_krw"), 0),
+                "ess_revenue_krw": _num(row.get("ess_revenue_krw"), 0),
+                "capacity_revenue_krw": _num(row.get("capacity_revenue_krw"), 0),
+                "subsidy_revenue_krw": _num(row.get("subsidy_revenue_krw"), 0),
+                "imbalance_penalty_krw": _num(row.get("imbalance_penalty_krw"), 0),
+                "total_revenue_krw": _num(row.get("total_revenue_krw"), 0),
+            })
+    rows.sort(key=lambda r: r.get("model_id") or "")
+    rows.sort(key=lambda r: r.get("source") or "")
+    rows.sort(key=lambda r: r.get("region") or "")
+    rows.sort(key=lambda r: r.get("target_date") or "", reverse=True)
+    return rows
+
+
+def build(forecast: Path, backtest: Path | None, champion: str, risk: str,
+          score_history: Path | None = None,
+          revenue_history: Path | None = None) -> dict:
     f = load_forecast(forecast)
     bt = load_backtest(backtest) if backtest and backtest.exists() else {
         "metrics": {}, "predictions": {}
@@ -167,6 +231,8 @@ def build(forecast: Path, backtest: Path | None, champion: str, risk: str) -> di
         },
         "regions": regions,
         "backtest": _build_backtest_payload(bt["predictions"], f["ko"], champion, risk),
+        "score_history": load_score_history(score_history),
+        "revenue_history": load_revenue_history(revenue_history),
     }
 
 
@@ -200,9 +266,14 @@ def main():
     ap.add_argument("--out", type=Path, default=Path("web/data.js"))
     ap.add_argument("--champion", default="MDL-04")
     ap.add_argument("--ensemble", default="MDL-07")
+    ap.add_argument("--score-history", type=Path, default=None)
+    ap.add_argument("--revenue-history", type=Path, default=None)
     args = ap.parse_args()
 
-    data = build(args.forecast, args.backtest, args.champion, args.ensemble)
+    data = build(
+        args.forecast, args.backtest, args.champion, args.ensemble,
+        args.score_history, args.revenue_history,
+    )
     args.out.parent.mkdir(parents=True, exist_ok=True)
     payload = "window.SMP_DATA = " + json.dumps(data, ensure_ascii=False, indent=2) + ";\n"
     args.out.write_text(payload, encoding="utf-8")
