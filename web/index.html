@@ -51,6 +51,7 @@
   .nav a:hover{background:var(--panel-2);color:var(--text)}
   .nav a.active{background:var(--panel-2);color:var(--text);box-shadow:inset 0 0 0 1px var(--line)}
   .nav a svg{width:17px;height:17px;opacity:.85}
+  .navgrp{font-size:10.5px;color:var(--muted);font-weight:700;padding:10px 12px 3px;text-transform:uppercase;letter-spacing:.03em}
   .side .foot-side{margin-top:auto;font-size:10.5px;color:var(--muted);padding:0 4px;line-height:1.6}
   .main{min-width:0}
   .view{display:none}
@@ -138,9 +139,14 @@
       <div><h1>SMP · VPP</h1><div class="sub">예측 · 수익 분석</div></div>
     </div>
     <nav class="nav" id="nav">
+      <div class="navgrp">분석</div>
       <a data-view="forecast" class="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l5-6 4 3 5-7 4 4"/></svg>내일 예측</a>
       <a data-view="backtest"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h4l3 7 4-14 3 7h4"/></svg>검증 · 실측 대비</a>
+      <a data-view="longterm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18L9 12l4 3 8-9"/><path d="M21 6v5h-5"/></svg>장기 SMP 전망</a>
+      <a data-view="ppa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V5M4 9h16M4 14h16M20 19V5"/></svg>PPA 가격 전망</a>
+      <div class="navgrp">수익</div>
       <a data-view="revenue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22M17 5H9a3 3 0 000 6h6a3 3 0 010 6H7"/></svg>수익 추정</a>
+      <div class="navgrp">시스템</div>
       <a data-view="about"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.5v.5"/></svg>정보</a>
     </nav>
     <div class="foot-side" id="genFoot">데이터 갱신 —</div>
@@ -296,6 +302,60 @@
     </div>
     <p class="foot">* MVP 추정입니다. 히스토리 수익은 실측 SMP로 정산하고 ESS 충방전 시간만 선택 모델의 예측 SMP로 잡습니다. CP는 research_ESS.md의 제주 RCP 22.05원/kW-h와 '25/'26 월별 실효용량비율(PV/ESS 2h·4h·6h·8h)을 적용합니다. 임밸런스 허용오차는 급전지시 ON 1.5%, OFF 6%입니다.</p>
   </section><!-- /view-revenue -->
+
+  <section id="view-longterm" class="view">
+    <div class="rev-grid">
+      <div class="ipanel">
+        <h3>정책 · 거시 가정</h3>
+        <div class="field"><div class="lab"><span>LNG 연료비 추세</span><span><b id="o-lt-fuel">0</b> %/yr</span></div><input type="range" id="lt-fuel" min="-5" max="10" value="0" step="0.5"></div>
+        <div class="field"><div class="lab"><span>재생E 보급 증가</span><span><b id="o-lt-re">8</b> %/yr</span></div><input type="range" id="lt-re" min="0" max="20" value="8" step="1"></div>
+        <div class="field"><div class="lab"><span>탄소배출권 가격</span><span><b id="o-lt-co2">3</b> %/yr</span></div><input type="range" id="lt-co2" min="0" max="15" value="3" step="0.5"></div>
+        <div class="field"><div class="lab"><span>원전·기저 비중</span><span><b id="o-lt-base">30</b> %</span></div><input type="range" id="lt-base" min="20" max="45" value="30" step="1"></div>
+        <div class="field"><div class="lab"><span>수요 성장(전력화)</span><span><b id="o-lt-dem">2.5</b> %/yr</span></div><input type="range" id="lt-dem" min="0" max="6" value="2.5" step="0.5"></div>
+        <div class="field" style="border-top:1px solid var(--line);padding-top:11px"><div class="lab"><span>시나리오 프리셋</span></div>
+          <div class="seg" style="width:100%"><button id="lt-low" aria-pressed="false" style="flex:1">저탄소</button><button id="lt-base2" aria-pressed="true" style="flex:1">기준</button><button id="lt-high" aria-pressed="false" style="flex:1">연료비↑</button></div></div>
+        <div class="field"><div class="lab"><span>지역</span></div>
+          <div class="seg" style="width:100%"><button id="lt-land" aria-pressed="true" style="flex:1">육지</button><button id="lt-jeju" aria-pressed="false" style="flex:1">제주</button></div></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <section class="kpis" style="grid-template-columns:repeat(4,1fr);margin:0">
+          <div class="kpi"><div class="edge" style="background:#5F6B7A"></div><div class="lab">과거 평균</div><div class="val num" id="lt-hist">—<small>2020-24</small></div></div>
+          <div class="kpi"><div class="edge" style="background:var(--offpeak)"></div><div class="lab">2026 전망</div><div class="val num" id="lt-now">—<small>원/kWh</small></div></div>
+          <div class="kpi"><div class="edge" style="background:var(--peak)"></div><div class="lab">2035 전망</div><div class="val num" id="lt-end">—<small>원/kWh</small></div></div>
+          <div class="kpi"><div class="edge" style="background:#C792EA"></div><div class="lab">전망 연평균</div><div class="val num" id="lt-cagr">—<small>%/yr</small></div></div>
+        </section>
+        <section class="card"><h2>SMP 장기 추이 — 실측 + 전망</h2><p class="desc">회색=과거 실측, 파랑=전망 중앙값, 음영=P10-P90 불확실성 밴드. 점선은 현재 분기점입니다.</p><div id="ltChart" style="width:100%;height:340px"></div></section>
+        <div class="banner" id="lt-tip" style="display:block;background:rgba(110,168,254,.1);border-color:rgba(110,168,254,.3);color:#BBD3FF">—</div>
+      </div>
+    </div>
+    <p class="foot">* 과거 실측은 전력거래소 연도별 SMP 추이 기반 근사값입니다. 전망은 정책 계수 시나리오이며 실제 장기 SMP는 전력수급기본계획·연료가·탄소가 등 외생변수에 따라 달라집니다.</p>
+  </section><!-- /view-longterm -->
+
+  <section id="view-ppa" class="view">
+    <div class="rev-grid">
+      <div class="ipanel">
+        <h3>PPA 계약 가정</h3>
+        <div class="field"><div class="lab"><span>PPA 고정단가</span><span><b id="o-pp-ppa">160</b> 원/kWh</span></div><input type="range" id="pp-ppa" min="100" max="220" value="160" step="5"></div>
+        <div class="field"><div class="lab"><span>계약 시작연도</span><span><b id="o-pp-start">2026</b></span></div><input type="range" id="pp-start" min="2021" max="2030" value="2026" step="1"></div>
+        <div class="field"><div class="lab"><span>계약 기간</span><span><b id="o-pp-term">15</b> 년</span></div><input type="range" id="pp-term" min="5" max="20" value="15" step="1"></div>
+        <div class="field"><div class="lab"><span>SMP 전망 추세</span><span><b id="o-pp-smp">1.5</b> %/yr</span></div><input type="range" id="pp-smp" min="-3" max="6" value="1.5" step="0.5"></div>
+        <div class="field"><div class="lab"><span>REC 단가</span><span><b id="o-pp-rec">70</b> 원/kWh</span></div><input type="range" id="pp-rec" min="0" max="120" value="70" step="5"></div>
+        <div class="field" style="border-top:1px solid var(--line);padding-top:11px"><div class="lab"><span>REC 추세</span><span><b id="o-pp-rect">-3</b> %/yr</span></div><input type="range" id="pp-rect" min="-10" max="5" value="-3" step="0.5"></div>
+        <div class="field"><div class="lab"><span>연간 발전량</span><span><b id="o-pp-gen">10</b> GWh</span></div><input type="range" id="pp-gen" min="1" max="100" value="10" step="1"></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <section class="kpis" style="grid-template-columns:repeat(4,1fr);margin:0">
+          <div class="kpi"><div class="edge" style="background:var(--peak)"></div><div class="lab">PPA 고정</div><div class="val num" id="pp-ppaavg">—<small>원/kWh</small></div></div>
+          <div class="kpi"><div class="edge" style="background:var(--offpeak)"></div><div class="lab">시장 평균</div><div class="val num" id="pp-mktavg">—<small>SMP+REC</small></div></div>
+          <div class="kpi"><div class="edge" style="background:var(--good)"></div><div class="lab">단가 유불리</div><div class="val num" id="pp-diff">—<small id="pp-diffu">원/kWh</small></div></div>
+          <div class="kpi"><div class="edge" style="background:#C792EA"></div><div class="lab">누적손익</div><div class="val num" id="pp-cum">—<small>억원</small></div></div>
+        </section>
+        <section class="card"><h2>단가 추이 — 과거 시장 실측 + 전망 vs PPA</h2><p class="desc">회색=과거 시장가(SMP+REC), 파랑=시장 전망, 주황 점선=PPA 고정가. 교차 시점 이후 시장 판매가 유리합니다.</p><div id="ppChart" style="width:100%;height:330px"></div></section>
+        <div class="banner" id="pp-tip" style="display:block;background:rgba(110,168,254,.1);border-color:rgba(110,168,254,.3);color:#BBD3FF">—</div>
+      </div>
+    </div>
+    <p class="foot">* PPA 유불리는 발전사업자 관점(고정가 - 시장가)입니다. 시장가 = SMP 전망 + REC 전망, 누적손익 = Σ(PPA - 시장가) × 연간 발전량입니다.</p>
+  </section><!-- /view-ppa -->
 
   <section id="view-about" class="view">
     <section class="card">
@@ -721,9 +781,16 @@
   // ===== 수익 뷰 =====
   const PAGE={forecast:['내일 SMP 예측','계통한계가격 · 모델 비교 · Day-ahead'],
     backtest:['검증 · 실측 대비','실제 SMP 대비 모델 예측 정확도'],
+    longterm:['장기 SMP 전망','정책 시나리오 기반 2026-2035 경로'],
+    ppa:['PPA 가격 전망','고정가 PPA vs 시장가(SMP+REC)'],
     revenue:['수익 추정','SMP 기반 시장참여 · ESS · CP · 보조금'],
     about:['정보','데이터 출처 · 모델 · 정산 규칙']};
   let revChart, revInited=false, revScn='base', revView='day';
+  let ltChart, ppChart, ltInited=false, ppInited=false, ltScn='base', ltRegion='land';
+  const HIST_SMP={land:{2020:68,2021:94,2022:196,2023:167,2024:130,2025:121},
+                  jeju:{2020:92,2021:118,2022:213,2023:185,2024:148,2025:138}};
+  const HIST_REC={2020:42,2021:35,2022:56,2023:72,2024:75,2025:70};
+  const HIST_YEARS=[2020,2021,2022,2023,2024,2025];
   const EC_RATIO={
     0:{pv:6.13,ess_2h:32.71,ess_4h:57.39,ess_6h:71.26,ess_8h:78.58},
     1:{pv:2.40,ess_2h:27.75,ess_4h:48.30,ess_6h:65.70,ess_8h:73.41},
@@ -989,6 +1056,106 @@
     setTimeout(()=>revChart&&revChart.resize(),30);
   }
 
+  // ===== 장기 SMP 전망 =====
+  function ltCalc(){
+    const g=id=>+$('#'+id).value;
+    const fuel=g('lt-fuel'),re=g('lt-re'),co2=g('lt-co2'),base=g('lt-base'),dem=g('lt-dem');
+    $('#o-lt-fuel').textContent=fuel.toFixed(1); $('#o-lt-re').textContent=re;
+    $('#o-lt-co2').textContent=co2.toFixed(1); $('#o-lt-base').textContent=base; $('#o-lt-dem').textContent=dem.toFixed(1);
+    const scenarioBias={low:-1.2,base:0,high:1.5}[ltScn];
+    const drift=fuel*0.9+co2*0.6+dem*1.1-re*0.7-(base-30)*0.4+scenarioBias;
+    const hist=HIST_SMP[ltRegion];
+    const forecastYears=[]; for(let y=2026;y<=2035;y++) forecastYears.push(y);
+    const mid=forecastYears.map((y,i)=>+(hist[2025]*Math.pow(1+drift/100,i+1)).toFixed(1));
+    const lo=mid.map((v,i)=>+(v*(1-0.06-0.012*i)).toFixed(1));
+    const hi=mid.map((v,i)=>+(v*(1+0.06+0.012*i)).toFixed(1));
+    const histAvg=(hist[2020]+hist[2021]+hist[2022]+hist[2023]+hist[2024])/5;
+    $('#lt-hist').innerHTML=Math.round(histAvg)+'<small>2020-24</small>';
+    $('#lt-now').innerHTML=Math.round(mid[0])+'<small>원/kWh</small>';
+    $('#lt-end').innerHTML=Math.round(mid[9])+'<small>원/kWh</small>';
+    $('#lt-cagr').innerHTML=(drift>=0?'+':'')+drift.toFixed(1)+'<small>%/yr</small>';
+    $('#lt-tip').textContent='과거 5년 평균 '+Math.round(histAvg)+'원 대비 2035년 전망 '+Math.round(mid[9])+'원'
+      +(mid[9]>histAvg?'입니다. 연료비·탄소가·수요 상승 가정이 가격을 밀어 올립니다.':'입니다. 재생E 보급·기저 확대 가정이 가격을 누릅니다.');
+    const years=HIST_YEARS.concat(forecastYears);
+    const histLine=HIST_YEARS.map(y=>hist[y]).concat(forecastYears.map(()=>null));
+    const midLine=HIST_YEARS.map((y,i)=>i===HIST_YEARS.length-1?hist[y]:null).concat(mid);
+    const loStack=years.map((y,i)=>i<HIST_YEARS.length?null:lo[i-HIST_YEARS.length]);
+    const bandStack=years.map((y,i)=>i<HIST_YEARS.length?null:+(hi[i-HIST_YEARS.length]-lo[i-HIST_YEARS.length]).toFixed(1));
+    if(!ltChart) ltChart=echarts.init($('#ltChart'));
+    ltChart.setOption({grid:{left:46,right:18,top:16,bottom:42},
+      tooltip:{trigger:'axis',backgroundColor:'#0E1116',borderColor:'#28313D',textStyle:{color:'#E8EDF4'}},
+      legend:{data:['실측','전망 중앙','P10-P90'],bottom:0,textStyle:{color:'#8C97A8',fontSize:11},selectedMode:false,itemWidth:18},
+      xAxis:{type:'category',data:years,boundaryGap:false,axisTick:{show:false},axisLine:{lineStyle:{color:'#28313D'}},axisLabel:{color:'#8C97A8',fontSize:11}},
+      yAxis:{type:'value',scale:true,splitLine:{lineStyle:{color:'rgba(40,49,61,.5)'}},axisLabel:{color:'#8C97A8',fontSize:10,fontFamily:'IBM Plex Mono',formatter:'{value}원'}},
+      series:[
+        {name:'P10-P90',type:'line',data:loStack,stack:'band',lineStyle:{opacity:0},symbol:'none',silent:true,z:1},
+        {name:'P10-P90',type:'line',data:bandStack,stack:'band',lineStyle:{opacity:0},areaStyle:{color:'rgba(57,138,221,.14)'},symbol:'none',silent:true,z:1},
+        {name:'실측',type:'line',data:histLine,smooth:true,symbol:'circle',symbolSize:5,lineStyle:{width:2.4,color:'#8C97A8'},itemStyle:{color:'#8C97A8'},z:4,
+          markLine:{silent:true,symbol:'none',lineStyle:{color:'#5F6B7A',type:'dashed'},data:[{xAxis:'2025'}],label:{formatter:'현재',color:'#8C97A8',fontSize:10}}},
+        {name:'전망 중앙',type:'line',data:midLine,smooth:true,symbol:'none',lineStyle:{width:2.6,color:'#6EA8FE'},z:5}
+      ]},true);
+  }
+  function initLongterm(){
+    if(!ltInited){
+      ['lt-fuel','lt-re','lt-co2','lt-base','lt-dem'].forEach(id=>$('#'+id).addEventListener('input',ltCalc));
+      const scenario=s=>{ltScn=s; $('#lt-low').setAttribute('aria-pressed',s==='low'); $('#lt-base2').setAttribute('aria-pressed',s==='base'); $('#lt-high').setAttribute('aria-pressed',s==='high'); ltCalc();};
+      $('#lt-low').onclick=()=>scenario('low'); $('#lt-base2').onclick=()=>scenario('base'); $('#lt-high').onclick=()=>scenario('high');
+      const region=r=>{ltRegion=r; $('#lt-land').setAttribute('aria-pressed',r==='land'); $('#lt-jeju').setAttribute('aria-pressed',r==='jeju'); ltCalc();};
+      $('#lt-land').onclick=()=>region('land'); $('#lt-jeju').onclick=()=>region('jeju');
+      ltInited=true;
+    }
+    ltCalc(); setTimeout(()=>ltChart&&ltChart.resize(),30);
+  }
+
+  // ===== PPA 가격 전망 =====
+  function ppCalc(){
+    const g=id=>+$('#'+id).value;
+    const ppa=g('pp-ppa'),start=g('pp-start'),term=g('pp-term'),smpTrend=g('pp-smp'),rec=g('pp-rec'),recTrend=g('pp-rect'),gen=g('pp-gen');
+    $('#o-pp-ppa').textContent=ppa; $('#o-pp-start').textContent=start; $('#o-pp-term').textContent=term;
+    $('#o-pp-smp').textContent=smpTrend.toFixed(1); $('#o-pp-rec').textContent=rec; $('#o-pp-rect').textContent=recTrend.toFixed(1); $('#o-pp-gen').textContent=gen;
+    const end=start+term-1;
+    const years=[]; for(let y=2020;y<=Math.max(end,2035);y++) years.push(y);
+    const hist=HIST_SMP.land;
+    const marketAt=y=>{
+      if(y<=2025) return (hist[y]??hist[2025])+(HIST_REC[y]??HIST_REC[2025]);
+      return hist[2025]*Math.pow(1+smpTrend/100,y-2025)+rec*Math.pow(1+recTrend/100,y-2025);
+    };
+    const market=years.map(y=>+marketAt(y).toFixed(1));
+    const ppaLine=years.map(y=>(y>=start&&y<=end)?ppa:null);
+    const termYears=years.filter(y=>y>=start&&y<=end);
+    const marketAvg=termYears.reduce((a,y)=>a+marketAt(y),0)/termYears.length;
+    const diff=ppa-marketAvg;
+    const cum=termYears.reduce((a,y)=>a+(ppa-marketAt(y)),0)*gen*1e6/1e8;
+    $('#pp-ppaavg').innerHTML=ppa+'<small>원/kWh</small>';
+    $('#pp-mktavg').innerHTML=Math.round(marketAvg)+'<small>SMP+REC</small>';
+    $('#pp-diff').innerHTML=(diff>=0?'+':'')+Math.round(diff)+'<small id="pp-diffu">'+(diff>=0?'PPA 유리':'시장 유리')+'</small>';
+    $('#pp-diff').style.color=diff>=0?'var(--good)':'var(--bad)';
+    $('#pp-cum').innerHTML=(cum>=0?'+':'')+cum.toFixed(1)+'<small>억원</small>';
+    $('#pp-cum').style.color=cum>=0?'var(--good)':'var(--bad)';
+    const cross=termYears.find(y=>marketAt(y)>ppa);
+    $('#pp-tip').textContent=diff>=0
+      ? '계약기간 평균 시장가 '+Math.round(marketAvg)+'원보다 PPA 고정가가 '+Math.round(diff)+'원 높아 발전사업자에게 유리합니다. 누적 '+cum.toFixed(1)+'억원 수준입니다'+(cross?' 단, '+cross+'년부터 일부 해는 시장가가 더 높습니다.':'.')
+      : '계약기간 평균 시장가가 PPA보다 '+Math.round(-diff)+'원 높습니다. 이 조건에서는 시장 판매가 유리하고, PPA는 변동성 회피 수단으로 봐야 합니다.';
+    if(!ppChart) ppChart=echarts.init($('#ppChart'));
+    ppChart.setOption({grid:{left:46,right:18,top:16,bottom:42},
+      tooltip:{trigger:'axis',backgroundColor:'#0E1116',borderColor:'#28313D',textStyle:{color:'#E8EDF4'}},
+      legend:{data:['시장(SMP+REC)','PPA 고정'],bottom:0,textStyle:{color:'#8C97A8',fontSize:11},itemWidth:18},
+      xAxis:{type:'category',data:years,boundaryGap:false,axisTick:{show:false},axisLine:{lineStyle:{color:'#28313D'}},axisLabel:{color:'#8C97A8',fontSize:10}},
+      yAxis:{type:'value',scale:true,splitLine:{lineStyle:{color:'rgba(40,49,61,.5)'}},axisLabel:{color:'#8C97A8',fontSize:10,fontFamily:'IBM Plex Mono',formatter:'{value}원'}},
+      series:[
+        {name:'시장(SMP+REC)',type:'line',data:market,smooth:true,symbol:'none',lineStyle:{width:2.2,color:'#6EA8FE'},areaStyle:{color:'rgba(110,168,254,.07)'},z:3,
+          markLine:{silent:true,symbol:'none',lineStyle:{color:'#5F6B7A',type:'dashed'},data:[{xAxis:'2025'}],label:{formatter:'현재',color:'#8C97A8',fontSize:10}}},
+        {name:'PPA 고정',type:'line',data:ppaLine,symbol:'none',connectNulls:false,lineStyle:{width:2.4,color:'#FFB22E',type:'dashed'},z:5}
+      ]},true);
+  }
+  function initPpa(){
+    if(!ppInited){
+      ['pp-ppa','pp-start','pp-term','pp-smp','pp-rec','pp-rect','pp-gen'].forEach(id=>$('#'+id).addEventListener('input',ppCalc));
+      ppInited=true;
+    }
+    ppCalc(); setTimeout(()=>ppChart&&ppChart.resize(),30);
+  }
+
   // ===== 사이드바 네비게이션 =====
   function showView(v){
     document.querySelectorAll('.view').forEach(s=>s.classList.remove('active'));
@@ -996,21 +1163,23 @@
     document.querySelectorAll('#nav a').forEach(a=>a.classList.toggle('active',a.dataset.view===v));
     $('#pageTitle').textContent=PAGE[v][0]; $('#pageSub').textContent=PAGE[v][1];
     // 지역 토글은 예측/검증에서만 의미
-    $('#regionSeg').style.display=(v==='revenue'||v==='about')?'none':'';
+    $('#regionSeg').style.display=(v==='forecast'||v==='backtest')?'':'none';
     if(v==='backtest'){ initBacktest(); setTimeout(()=>{btChart&&btChart.resize();btMape&&btMape.resize();dailyScoreChart&&dailyScoreChart.resize();},30); }
     else if(v==='revenue'){ initRevenue(); }
+    else if(v==='longterm'){ initLongterm(); }
+    else if(v==='ppa'){ initPpa(); }
     else if(v==='forecast'){ setTimeout(()=>{mainChart.resize();heatChart.resize();mapeChart.resize();},30); }
     const hash = v==='backtest' ? '#validation' : '#'+v;
     if(location.hash!==hash) history.replaceState(null,'',hash);
   }
   document.querySelectorAll('#nav a').forEach(a=>{ a.onclick=e=>{e.preventDefault();showView(a.dataset.view);}; });
-  window.addEventListener('resize',()=>{btChart&&btChart.resize();btMape&&btMape.resize();dailyScoreChart&&dailyScoreChart.resize();revChart&&revChart.resize();});
+  window.addEventListener('resize',()=>{btChart&&btChart.resize();btMape&&btMape.resize();dailyScoreChart&&dailyScoreChart.resize();revChart&&revChart.resize();ltChart&&ltChart.resize();ppChart&&ppChart.resize();});
 
   $('#genFoot').textContent='데이터 갱신 '+((D.meta.generated_at||'').slice(0,16).replace('T',' '));
   initVisible(); initForecastTableToggle(); renderAll();
   const initial=(location.hash||'#forecast').slice(1);
   const initialView=initial==='validation'?'backtest':initial;
-  showView(['forecast','backtest','revenue','about'].includes(initialView)?initialView:'forecast');
+  showView(['forecast','backtest','longterm','ppa','revenue','about'].includes(initialView)?initialView:'forecast');
 })();
 </script>
 </body>
