@@ -195,6 +195,13 @@
     <section class="card"><h2>모델 × 시간대 히트맵</h2><p class="desc">행=모델, 열=시각. 색이 진할수록 고가. 세로로 색이 갈리면 모델 간 이견이 큼.</p><div id="heatChart"></div></section>
     <section class="card"><h2>백테스트 정확도 (MAPE)</h2><p class="desc">모델별 평균 오차. 짧을수록(시안) 정확, 길수록(앰버) 부정확.</p><div id="mapeChart"></div></section>
   </div>
+  <section class="card" style="margin-top:14px">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+      <div><h2>시간대별 예측값</h2><p class="desc" style="margin:0">선택 지역의 모델별 p50 예측값입니다.</p></div>
+      <button class="chip" id="forecastTableToggle" aria-expanded="false">표 펼치기</button>
+    </div>
+    <div class="table-wrap" id="forecastTableWrap" style="margin-top:10px;display:none"><table id="forecastTable"></table></div>
+  </section>
   </section><!-- /view-forecast -->
 
   <section id="view-backtest" class="view">
@@ -496,7 +503,27 @@
     $('#kSpread').innerHTML=`${sp.toFixed(1)}<small>원</small>`; $('#kSpreadHr').textContent=`${spH}시 · 모델 이견 최대`;
   }
 
-  function renderAll(){ renderMain(); renderHeat(); renderMape(); renderPanel(); renderKPIs(); }
+  function renderForecastTable(){
+    const table=$('#forecastTable'); if(!table) return;
+    const ms=[...reg().models].sort((a,b)=>(a.role==='ensemble'?-1:b.role==='ensemble'?1:a.id.localeCompare(b.id)));
+    const head='<thead><tr><th>시간</th>'+ms.map(m=>`<th>${m.name_ko}<br><span style="color:var(--muted);font-weight:500">${m.id}</span></th>`).join('')+'</tr></thead>';
+    const body='<tbody>'+reg().hours.map((h,idx)=>`<tr><td>${h}시</td>`+
+      ms.map(m=>`<td class="num">${fmt((m.p50||[])[idx])}</td>`).join('')+'</tr>').join('')+'</tbody>';
+    table.innerHTML=head+body;
+  }
+  function initForecastTableToggle(){
+    const btn=$('#forecastTableToggle'), wrap=$('#forecastTableWrap');
+    if(!btn||!wrap||btn.dataset.bound) return;
+    btn.dataset.bound='1';
+    btn.onclick=()=>{
+      const open=wrap.style.display==='none';
+      wrap.style.display=open?'block':'none';
+      btn.textContent=open?'표 접기':'표 펼치기';
+      btn.setAttribute('aria-expanded', String(open));
+    };
+  }
+
+  function renderAll(){ renderMain(); renderHeat(); renderMape(); renderPanel(); renderKPIs(); renderForecastTable(); }
 
   $('#tEns').onclick=function(){state.showEns=!state.showEns;this.setAttribute('aria-pressed',state.showEns);renderMain();renderPanel();};
   $('#tBand').onclick=function(){state.showBand=!state.showBand;this.setAttribute('aria-pressed',state.showBand);renderMain();};
@@ -510,25 +537,8 @@
   let btChart, btMape, dailyScoreChart, btState={region:null, visible:{}, inited:false};
   function btReg(){ const b=D.backtest||{}; return b[btState.region]||b[Object.keys(b)[0]]; }
   function dayKey(label){ return String(label||'').slice(0,5); }
-  function dailyScores(){
+  function dailyScoresFromBacktest(){
     const rg=btReg(); if(!rg) return [];
-    const hist=(D.score_history||[]).filter(r=>r.region===btState.region);
-    if(hist.length){
-      const days=[...new Set(hist.map(r=>r.target_date))].sort();
-      return days.map(day=>{
-        const modelRows=hist.filter(r=>r.target_date===day).map(r=>{
-          const src=(rg.models||[]).find(m=>m.id===r.model_id)||{};
-          return {id:r.model_id,name_ko:r.model_ko||src.name_ko||r.model_id,role:src.role||'model',
-            mape:r.mape,mae:r.mae,score:r.score};
-        });
-        const actualVals=hist.filter(r=>r.target_date===day&&r.actual_avg!=null).map(r=>r.actual_avg);
-        const actualAvg=actualVals.length?actualVals.reduce((a,c)=>a+c,0)/actualVals.length:null;
-        const best=modelRows.filter(x=>x.score!=null).sort((a,b)=>b.score-a.score)[0]||{};
-        const ens=modelRows.find(x=>x.role==='ensemble')||modelRows.find(x=>x.id===D.meta.ensemble_id)||{};
-        const champ=modelRows.find(x=>x.role==='champion')||modelRows.find(x=>x.id===D.meta.champion_id)||{};
-        return {day,actualAvg:actualAvg==null?null:+actualAvg.toFixed(1),models:modelRows,best,ens,champ};
-      });
-    }
     const days=[...new Set((rg.timestamps||[]).map(dayKey))];
     return days.sort().map(day=>{
       const idxs=rg.timestamps.map((t,i)=>dayKey(t)===day?i:-1).filter(i=>i>=0);
@@ -545,6 +555,25 @@
       const champ=modelRows.find(x=>x.role==='champion')||{};
       return {day,actualAvg:actualAvg==null?null:+actualAvg.toFixed(1),models:modelRows,best,ens,champ};
     });
+  }
+  function dailyScores(){
+    const rg=btReg(); if(!rg) return [];
+    const byDay=new Map(dailyScoresFromBacktest().map(r=>[r.day,r]));
+    const hist=(D.score_history||[]).filter(r=>r.region===btState.region);
+    [...new Set(hist.map(r=>r.target_date))].forEach(day=>{
+      const modelRows=hist.filter(r=>r.target_date===day).map(r=>{
+        const src=(rg.models||[]).find(m=>m.id===r.model_id)||{};
+        return {id:r.model_id,name_ko:r.model_ko||src.name_ko||r.model_id,role:src.role||'model',
+          mape:r.mape,mae:r.mae,score:r.score};
+      });
+      const actualVals=hist.filter(r=>r.target_date===day&&r.actual_avg!=null).map(r=>r.actual_avg);
+      const actualAvg=actualVals.length?actualVals.reduce((a,c)=>a+c,0)/actualVals.length:null;
+      const best=modelRows.filter(x=>x.score!=null).sort((a,b)=>b.score-a.score)[0]||{};
+      const ens=modelRows.find(x=>x.role==='ensemble')||modelRows.find(x=>x.id===D.meta.ensemble_id)||{};
+      const champ=modelRows.find(x=>x.role==='champion')||modelRows.find(x=>x.id===D.meta.champion_id)||{};
+      byDay.set(day,{day,actualAvg:actualAvg==null?null:+actualAvg.toFixed(1),models:modelRows,best,ens,champ});
+    });
+    return [...byDay.values()].sort((a,b)=>String(a.day).localeCompare(String(b.day)));
   }
 
   function buildBtTools(){
@@ -729,6 +758,24 @@
       label:`${target} · 내일 예측`, revenueSmp:(m.p50||[]).filter(v=>v!=null), scheduleSmp:(m.p50||[]).filter(v=>v!=null)
     })).filter(o=>o.revenueSmp.length&&o.scheduleSmp.length);
   }
+  function revActualHistoryByDay(){
+    const src=(D.actual_history&&D.actual_history[state.region])||{};
+    return Object.keys(src).filter(d=>(src[d]||[]).filter(v=>v!=null).length>=24)
+      .sort().reverse()
+      .map(d=>({source:'actual', group:'히스토리 실측 수익', day:d, model_id:'ACTUAL', model_name:'실측 SMP',
+        label:`${d} · 실측 수익`, revenueSmp:src[d], scheduleSmp:src[d], schedule_model_id:'ACTUAL', schedule_model_name:'실측 기반 최적'}));
+  }
+  function revForecastHistoryByDay(){
+    const out=[];
+    (D.revenue_history||[]).filter(r=>r.region===state.region&&r.source==='forecast').forEach(r=>{
+      const values=((D.meta.target_date===r.target_date)?((reg().models||[]).find(m=>m.id===r.model_id)||{}).p50:null) || null;
+      if(values&&values.filter(v=>v!=null).length){
+        out.push({source:'forecast', group:'예측 SMP 수익', day:r.target_date, model_id:r.model_id,
+          model_name:r.model_name||r.model_id, label:`${r.target_date} · 예측 SMP`, revenueSmp:values, scheduleSmp:values});
+      }
+    });
+    return out;
+  }
   function revBacktestSeriesByDay(){
     const bt=revRegionBacktest(); if(!bt) return {actual:{}, forecast:{}};
     const actual={}, forecast={};
@@ -754,11 +801,14 @@
   }
   function revBuildOptions(){
     const split=revBacktestSeriesByDay();
-    const actual=Object.keys(split.actual).filter(d=>split.actual[d].length).sort().reverse()
+    const actualFromCache=revActualHistoryByDay();
+    const actualFromBacktest=Object.keys(split.actual).filter(d=>split.actual[d].length).sort().reverse()
       .map(d=>({source:'actual', group:'히스토리 실측 수익', day:d, model_id:'actual', model_name:'실측 SMP', label:`${d} · 실측 수익`, revenueSmp:split.actual[d], scheduleSmp:split.actual[d]}));
     const historicalForecast=Object.values(split.forecast).filter(o=>o.revenueSmp.length&&o.scheduleSmp.length)
       .sort((a,b)=>(b.day.localeCompare(a.day)||a.model_id.localeCompare(b.model_id)));
-    return {actual, forecast:revCurrentForecastOptions(), schedule:historicalForecast};
+    const actualDays=new Set(actualFromCache.map(o=>o.day));
+    const actual=[...actualFromCache, ...actualFromBacktest.filter(o=>!actualDays.has(o.day))];
+    return {actual, forecast:[...revCurrentForecastOptions(), ...revForecastHistoryByDay()], schedule:historicalForecast};
   }
 
   function buildRevDays(){
@@ -783,7 +833,7 @@
     modelWrap.style.display=(sourceInUse==='forecast'||forecastForDay.length)?'':'none';
     modelSel.innerHTML='';
     const models=sourceInUse==='forecast'?dayOpts:forecastForDay;
-    const modelRows=models.length?models:[{model_id:'actual',model_name:'실측 SMP'}];
+    const modelRows=models.length?models:[{model_id:'ACTUAL',model_name:'실측 기반 최적'}];
     modelRows.forEach(o=>{ const op=document.createElement('option'); op.value=o.model_id; op.textContent=o.model_name; modelSel.appendChild(op); });
     const defaultModel = modelRows.find(o=>o.model_id===D.meta.ensemble_id)?.model_id
       || modelRows.find(o=>o.model_id===D.meta.champion_id)?.model_id
@@ -804,6 +854,7 @@
     if(source==='actual'){
       const sched=(window.__REVSCHEDULEOPTS||[]).find(o=>o.day===day&&o.model_id===model);
       if(sched) return {...selected, scheduleSmp:sched.scheduleSmp, schedule_model_id:sched.model_id, schedule_model_name:sched.model_name};
+      return {...selected, schedule_model_id:'ACTUAL', schedule_model_name:'실측 기반 최적'};
     }
     return selected;
   }
@@ -905,7 +956,7 @@
     const sched=plan.schedule||scheduleSmp.map(()=>0);
     const colors=sched.map(v=> v<0?'#378ADD':(v>0?'#EF9F27':'rgba(150,150,150,.22)'));
     const sourceName=opt.source==='actual'
-      ? `수익=실측 SMP · 스케줄=${opt.schedule_model_name||opt.schedule_model_id||'선택 모델'} 예측`
+      ? `수익=실측 SMP · 스케줄=${opt.schedule_model_name||opt.schedule_model_id||'실측 기반 최적'}`
       : `수익/스케줄=${opt.model_name||opt.model_id} 예측`;
     $('#essTitle').textContent=`ESS 하루 운전 곡선 · ${opt.day||''}`;
     $('#essDesc').textContent=`기준 데이터: ${sourceName}. 선=정산 SMP, 막대=예측 기반 충전(파랑)·방전(주황).`;
@@ -956,7 +1007,7 @@
   window.addEventListener('resize',()=>{btChart&&btChart.resize();btMape&&btMape.resize();dailyScoreChart&&dailyScoreChart.resize();revChart&&revChart.resize();});
 
   $('#genFoot').textContent='데이터 갱신 '+((D.meta.generated_at||'').slice(0,16).replace('T',' '));
-  initVisible(); renderAll();
+  initVisible(); initForecastTableToggle(); renderAll();
   const initial=(location.hash||'#forecast').slice(1);
   const initialView=initial==='validation'?'backtest':initial;
   showView(['forecast','backtest','revenue','about'].includes(initialView)?initialView:'forecast');

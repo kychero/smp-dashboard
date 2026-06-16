@@ -184,9 +184,38 @@ def load_revenue_history(path: Path | None) -> list[dict]:
     return rows
 
 
+def load_actual_history(path: Path | None, days: int = 60) -> dict:
+    if not path or not path.exists():
+        return {}
+    rows = []
+    with path.open("r", encoding="utf-8-sig", newline="") as f:
+        for row in csv.DictReader(f):
+            try:
+                target_date = dt.date.fromisoformat(str(row.get("target_date", ""))[:10])
+                hour = int(float(row.get("hour_end", "")))
+                smp = _num(row.get("smp"))
+            except (TypeError, ValueError):
+                continue
+            if not row.get("region") or hour < 1 or hour > 24 or smp is None:
+                continue
+            rows.append((target_date, row["region"], hour, smp))
+    if not rows:
+        return {}
+    latest = max(r[0] for r in rows)
+    cutoff = latest - dt.timedelta(days=max(days - 1, 0))
+    grouped: dict = {}
+    for target_date, region, hour, smp in rows:
+        if target_date < cutoff:
+            continue
+        day = target_date.isoformat()
+        grouped.setdefault(region, {}).setdefault(day, [None] * 24)[hour - 1] = smp
+    return grouped
+
+
 def build(forecast: Path, backtest: Path | None, champion: str, risk: str,
           score_history: Path | None = None,
-          revenue_history: Path | None = None) -> dict:
+          revenue_history: Path | None = None,
+          actuals: Path | None = None) -> dict:
     f = load_forecast(forecast)
     bt = load_backtest(backtest) if backtest and backtest.exists() else {
         "metrics": {}, "predictions": {}
@@ -233,6 +262,7 @@ def build(forecast: Path, backtest: Path | None, champion: str, risk: str,
         "backtest": _build_backtest_payload(bt["predictions"], f["ko"], champion, risk),
         "score_history": load_score_history(score_history),
         "revenue_history": load_revenue_history(revenue_history),
+        "actual_history": load_actual_history(actuals),
     }
 
 
@@ -268,11 +298,12 @@ def main():
     ap.add_argument("--ensemble", default="MDL-07")
     ap.add_argument("--score-history", type=Path, default=None)
     ap.add_argument("--revenue-history", type=Path, default=None)
+    ap.add_argument("--actuals", type=Path, default=None)
     args = ap.parse_args()
 
     data = build(
         args.forecast, args.backtest, args.champion, args.ensemble,
-        args.score_history, args.revenue_history,
+        args.score_history, args.revenue_history, args.actuals,
     )
     args.out.parent.mkdir(parents=True, exist_ok=True)
     payload = "window.SMP_DATA = " + json.dumps(data, ensure_ascii=False, indent=2) + ";\n"
