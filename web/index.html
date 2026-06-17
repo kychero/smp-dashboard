@@ -332,6 +332,7 @@
           <div class="kpi"><div class="edge" style="background:var(--offpeak)"></div><div class="lab">2026 전망</div><div class="val num" id="lt-now">—<small>원/kWh</small></div></div>
           <div class="kpi"><div class="edge" style="background:var(--peak)"></div><div class="lab">2035 전망</div><div class="val num" id="lt-end">—<small>원/kWh</small></div></div>
         </section>
+        <section class="card"><h2>연도별 평균 SMP 전망</h2><p class="desc">월별 LNG 기반 전망을 연평균으로 집계한 경로입니다. 음영은 월별 P10-P90을 연평균으로 환산한 범위입니다.</p><div id="ltYearChart" style="width:100%;height:260px"></div></section>
         <section class="card"><h2>월별 SMP — 실측 + LNG 기반 전망</h2><p class="desc">회색=과거 실측 월별, 노랑=전망 중앙값, 음영=P10-P90. 겨울 LNG 가격과 여름·겨울 전력수요 계절성이 월별 패턴을 만듭니다.</p><div id="ltChart" style="width:100%;height:340px"></div></section>
         <section class="card"><h2>현재 SMP 변동비 분해</h2><p class="desc">LNG 한계발전기 변동비 = 연료비 + 환경·배출 비용. 효율이 낮을수록 연료비 비중이 커집니다.</p>
           <div class="vbar" id="lt-vbar"></div>
@@ -798,7 +799,7 @@
     revenue:['수익 추정','SMP 기반 시장참여 · ESS · CP · 보조금'],
     about:['정보','데이터 출처 · 모델 · 정산 규칙']};
   let revChart, revInited=false, revScn='base', revView='day';
-  let ltChart, ppChart, ltInited=false, ppInited=false, ltScn='base', ltRegion='land';
+  let ltChart, ltYearChart, ppChart, ltInited=false, ppInited=false, ltScn='base', ltRegion='land';
   const HIST_SMP={land:{2020:68,2021:94,2022:196,2023:167,2024:130,2025:121},
                   jeju:{2020:92,2021:118,2022:213,2023:185,2024:148,2025:138}};
   const HIST_REC={2020:42,2021:35,2022:56,2023:72,2024:75,2025:70};
@@ -1115,6 +1116,10 @@
     }
     const histAvg=histVals.reduce((a,c)=>a+c,0)/histVals.length;
     const avg=arr=>arr.reduce((a,c)=>a+c,0)/arr.length;
+    const yearLabels=[]; for(let y=2026;y<=2035;y++) yearLabels.push(String(y));
+    const yearMid=yearLabels.map((_,i)=>+avg(mid.slice(i*12,i*12+12)).toFixed(1));
+    const yearLo=yearLabels.map((_,i)=>+avg(lo.slice(i*12,i*12+12)).toFixed(1));
+    const yearHi=yearLabels.map((_,i)=>+avg(hi.slice(i*12,i*12+12)).toFixed(1));
     $('#lt-hist').innerHTML=Math.round(histAvg)+'<small>2022-25</small>';
     $('#lt-vc').innerHTML=Math.round(vc.total*regionMult)+'<small>원/kWh</small>';
     $('#lt-now').innerHTML=Math.round(avg(mid.slice(0,12)))+'<small>원/kWh</small>';
@@ -1131,6 +1136,17 @@
     const midLine=histMonths.map((x,i)=>i===pad-1?histVals[i]:null).concat(mid);
     const loStack=months.map((x,i)=>i<pad?null:lo[i-pad]);
     const bandStack=months.map((x,i)=>i<pad?null:+(hi[i-pad]-lo[i-pad]).toFixed(1));
+    if(!ltYearChart) ltYearChart=echarts.init($('#ltYearChart'));
+    ltYearChart.setOption({grid:{left:46,right:18,top:14,bottom:42},
+      tooltip:{trigger:'axis',backgroundColor:'#0E1116',borderColor:'#28313D',textStyle:{color:'#E8EDF4'}},
+      legend:{data:['연평균','P10-P90'],bottom:0,textStyle:{color:'#8C97A8',fontSize:11},selectedMode:false,itemWidth:18},
+      xAxis:{type:'category',data:yearLabels,boundaryGap:false,axisTick:{show:false},axisLine:{lineStyle:{color:'#28313D'}},axisLabel:{color:'#8C97A8',fontSize:11}},
+      yAxis:{type:'value',scale:true,splitLine:{lineStyle:{color:'rgba(40,49,61,.5)'}},axisLabel:{color:'#8C97A8',fontSize:10,fontFamily:'IBM Plex Mono',formatter:'{value}원'}},
+      series:[
+        {name:'P10-P90',type:'line',data:yearLo,stack:'yearBand',lineStyle:{opacity:0},symbol:'none',silent:true,z:1},
+        {name:'P10-P90',type:'line',data:yearHi.map((v,i)=>+(v-yearLo[i]).toFixed(1)),stack:'yearBand',lineStyle:{opacity:0},areaStyle:{color:'rgba(246,196,69,.13)'},symbol:'none',silent:true,z:1},
+        {name:'연평균',type:'line',data:yearMid,smooth:true,symbol:'circle',symbolSize:5,lineStyle:{width:2.4,color:'#F6C445'},itemStyle:{color:'#F6C445'},z:5}
+      ]},true);
     if(!ltChart) ltChart=echarts.init($('#ltChart'));
     ltChart.setOption({grid:{left:46,right:18,top:16,bottom:58},
       tooltip:{trigger:'axis',backgroundColor:'#0E1116',borderColor:'#28313D',textStyle:{color:'#E8EDF4'}},
@@ -1157,7 +1173,7 @@
       $('#lt-land').onclick=()=>region('land'); $('#lt-jeju').onclick=()=>region('jeju');
       ltInited=true;
     }
-    ltCalc(); setTimeout(()=>ltChart&&ltChart.resize(),30);
+    ltCalc(); setTimeout(()=>{ltYearChart&&ltYearChart.resize();ltChart&&ltChart.resize();},30);
   }
 
   // ===== PPA 가격 전망 =====
@@ -1226,7 +1242,7 @@
     if(location.hash!==hash) history.replaceState(null,'',hash);
   }
   document.querySelectorAll('#nav a').forEach(a=>{ a.onclick=e=>{e.preventDefault();showView(a.dataset.view);}; });
-  window.addEventListener('resize',()=>{btChart&&btChart.resize();btMape&&btMape.resize();dailyScoreChart&&dailyScoreChart.resize();revChart&&revChart.resize();ltChart&&ltChart.resize();ppChart&&ppChart.resize();});
+  window.addEventListener('resize',()=>{btChart&&btChart.resize();btMape&&btMape.resize();dailyScoreChart&&dailyScoreChart.resize();revChart&&revChart.resize();ltYearChart&&ltYearChart.resize();ltChart&&ltChart.resize();ppChart&&ppChart.resize();});
 
   $('#genFoot').textContent='데이터 갱신 '+((D.meta.generated_at||'').slice(0,16).replace('T',' '));
   initVisible(); initForecastTableToggle(); renderAll();
