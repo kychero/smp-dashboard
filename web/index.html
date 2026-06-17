@@ -60,6 +60,8 @@
   .rev-inputs{display:flex;flex-direction:column;gap:14px}
   .ipanel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px;display:flex;flex-direction:column;gap:13px}
   .ipanel h3{font-size:13.5px;margin:0;font-weight:700}
+  .ipanel .gh{font-size:10.5px;color:var(--muted);font-weight:700;letter-spacing:.03em;text-transform:uppercase;border-top:1px solid var(--line);padding-top:11px;margin-top:2px}
+  .ipanel .gh:first-of-type{border-top:0;padding-top:0;margin-top:0}
   .field .lab{display:flex;justify-content:space-between;font-size:12.5px;color:var(--muted)}
   .field .lab b{color:var(--text)}
   .field input[type=range]{width:100%;accent-color:var(--peak)}
@@ -68,6 +70,8 @@
   .rev-card .l{font-size:12px;color:var(--muted)}
   .rev-card .v{font-size:20px;font-weight:600;margin-top:3px}
   .rev-card .u{font-size:10px;color:var(--muted)}
+  .vbar{display:flex;height:22px;border-radius:6px;overflow:hidden;margin-top:4px;font-size:10px}
+  .vbar div{display:flex;align-items:center;justify-content:center;color:#0E1116;font-weight:700}
   @media (max-width:900px){.app{grid-template-columns:1fr}.side{position:static;height:auto;flex-direction:row;flex-wrap:wrap;border-right:0;border-bottom:1px solid var(--line)}.side .foot-side{display:none}.nav{flex-direction:row;flex-wrap:wrap}.rev-grid{grid-template-columns:1fr}.rev-cards{grid-template-columns:repeat(2,1fr)}}
   .meta{display:flex;align-items:center;gap:14px;font-size:12px;color:var(--muted);flex-wrap:wrap}
   .meta b{color:var(--text);font-weight:600}
@@ -306,29 +310,37 @@
   <section id="view-longterm" class="view">
     <div class="rev-grid">
       <div class="ipanel">
-        <h3>정책 · 거시 가정</h3>
-        <div class="field"><div class="lab"><span>LNG 연료비 추세</span><span><b id="o-lt-fuel">0</b> %/yr</span></div><input type="range" id="lt-fuel" min="-5" max="10" value="0" step="0.5"></div>
-        <div class="field"><div class="lab"><span>재생E 보급 증가</span><span><b id="o-lt-re">8</b> %/yr</span></div><input type="range" id="lt-re" min="0" max="20" value="8" step="1"></div>
-        <div class="field"><div class="lab"><span>탄소배출권 가격</span><span><b id="o-lt-co2">3</b> %/yr</span></div><input type="range" id="lt-co2" min="0" max="15" value="3" step="0.5"></div>
-        <div class="field"><div class="lab"><span>원전·기저 비중</span><span><b id="o-lt-base">30</b> %</span></div><input type="range" id="lt-base" min="20" max="45" value="30" step="1"></div>
-        <div class="field"><div class="lab"><span>수요 성장(전력화)</span><span><b id="o-lt-dem">2.5</b> %/yr</span></div><input type="range" id="lt-dem" min="0" max="6" value="2.5" step="0.5"></div>
+        <h3>LNG · 거시 가정</h3>
+        <div class="gh">LNG 연료</div>
+        <div class="field"><div class="lab"><span>LNG 현재가</span><span><b id="o-lt-lng0">14</b> $/MMBtu</span></div><input type="range" id="lt-lng0" min="6" max="30" value="14" step="0.5"></div>
+        <div class="field"><div class="lab"><span>LNG 가격 추세</span><span><b id="o-lt-lngT">2</b> %/yr</span></div><input type="range" id="lt-lngT" min="-6" max="12" value="2" step="0.5"></div>
+        <div class="field"><div class="lab"><span>환율 추세</span><span><b id="o-lt-fxT">0</b> %/yr</span></div><input type="range" id="lt-fxT" min="-4" max="6" value="0" step="0.5"></div>
+        <div class="field"><div class="lab"><span>LNG 복합효율 η</span><span><b id="o-lt-eff">50</b> %</span></div><input type="range" id="lt-eff" min="40" max="62" value="50" step="1"></div>
+        <div class="gh">계통 · 정책</div>
+        <div class="field"><div class="lab"><span>탄소배출권가 추세</span><span><b id="o-lt-co2">3</b> %/yr</span></div><input type="range" id="lt-co2" min="0" max="15" value="3" step="0.5"></div>
+        <div class="field"><div class="lab"><span>재생E·기저 확대</span><span><b id="o-lt-re">8</b> %/yr</span></div><input type="range" id="lt-re" min="0" max="20" value="8" step="1"></div>
+        <div class="field"><div class="lab"><span>유가→LNG 시차</span><span><b id="o-lt-lag">4</b> 개월</span></div><input type="range" id="lt-lag" min="0" max="6" value="4" step="1"></div>
         <div class="field" style="border-top:1px solid var(--line);padding-top:11px"><div class="lab"><span>시나리오 프리셋</span></div>
-          <div class="seg" style="width:100%"><button id="lt-low" aria-pressed="false" style="flex:1">저탄소</button><button id="lt-base2" aria-pressed="true" style="flex:1">기준</button><button id="lt-high" aria-pressed="false" style="flex:1">연료비↑</button></div></div>
+          <div class="seg" style="width:100%"><button id="lt-low" aria-pressed="false" style="flex:1">공급안정</button><button id="lt-base2" aria-pressed="true" style="flex:1">기준</button><button id="lt-high" aria-pressed="false" style="flex:1">공급충격</button></div></div>
         <div class="field"><div class="lab"><span>지역</span></div>
           <div class="seg" style="width:100%"><button id="lt-land" aria-pressed="true" style="flex:1">육지</button><button id="lt-jeju" aria-pressed="false" style="flex:1">제주</button></div></div>
       </div>
       <div style="display:flex;flex-direction:column;gap:14px">
         <section class="kpis" style="grid-template-columns:repeat(4,1fr);margin:0">
-          <div class="kpi"><div class="edge" style="background:#5F6B7A"></div><div class="lab">과거 평균</div><div class="val num" id="lt-hist">—<small>2020-24</small></div></div>
+          <div class="kpi"><div class="edge" style="background:#5F6B7A"></div><div class="lab">과거 평균</div><div class="val num" id="lt-hist">—<small>2022-25</small></div></div>
+          <div class="kpi"><div class="edge" style="background:#F6C445"></div><div class="lab">LNG 변동비</div><div class="val num" id="lt-vc">—<small>원/kWh</small></div></div>
           <div class="kpi"><div class="edge" style="background:var(--offpeak)"></div><div class="lab">2026 전망</div><div class="val num" id="lt-now">—<small>원/kWh</small></div></div>
           <div class="kpi"><div class="edge" style="background:var(--peak)"></div><div class="lab">2035 전망</div><div class="val num" id="lt-end">—<small>원/kWh</small></div></div>
-          <div class="kpi"><div class="edge" style="background:#C792EA"></div><div class="lab">전망 연평균</div><div class="val num" id="lt-cagr">—<small>%/yr</small></div></div>
         </section>
-        <section class="card"><h2>SMP 장기 추이 — 실측 + 전망</h2><p class="desc">회색=과거 실측, 파랑=전망 중앙값, 음영=P10-P90 불확실성 밴드. 점선은 현재 분기점입니다.</p><div id="ltChart" style="width:100%;height:340px"></div></section>
-        <div class="banner" id="lt-tip" style="display:block;background:rgba(110,168,254,.1);border-color:rgba(110,168,254,.3);color:#BBD3FF">—</div>
+        <section class="card"><h2>월별 SMP — 실측 + LNG 기반 전망</h2><p class="desc">회색=과거 실측 월별, 노랑=전망 중앙값, 음영=P10-P90. 겨울 LNG 가격과 여름·겨울 전력수요 계절성이 월별 패턴을 만듭니다.</p><div id="ltChart" style="width:100%;height:340px"></div></section>
+        <section class="card"><h2>현재 SMP 변동비 분해</h2><p class="desc">LNG 한계발전기 변동비 = 연료비 + 환경·배출 비용. 효율이 낮을수록 연료비 비중이 커집니다.</p>
+          <div class="vbar" id="lt-vbar"></div>
+          <div style="display:flex;gap:16px;margin-top:8px;font-size:11px;color:var(--muted);flex-wrap:wrap"><span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#F6C445;margin-right:4px"></span>LNG 연료비</span><span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#C792EA;margin-right:4px"></span>환경·배출</span></div>
+        </section>
+        <div class="banner" id="lt-tip" style="display:block;background:rgba(246,196,69,.08);border-color:rgba(246,196,69,.28);color:#F3DDA0">—</div>
       </div>
     </div>
-    <p class="foot">* 과거 실측은 전력거래소 연도별 SMP 추이 기반 근사값입니다. 전망은 정책 계수 시나리오이며 실제 장기 SMP는 전력수급기본계획·연료가·탄소가 등 외생변수에 따라 달라집니다.</p>
+    <p class="foot">* LNG 변동비 = (LNG단가 × 환율 / 발열량) × (860 / 효율) + 환경비용. 과거 실측은 전력거래소 월별 SMP 추이 기반 근사이며, 전망은 LNG 가격 경로·계절계수·LNG 한계비율로 생성합니다.</p>
   </section><!-- /view-longterm -->
 
   <section id="view-ppa" class="view">
@@ -791,6 +803,16 @@
                   jeju:{2020:92,2021:118,2022:213,2023:185,2024:148,2025:138}};
   const HIST_REC={2020:42,2021:35,2022:56,2023:72,2024:75,2025:70};
   const HIST_YEARS=[2020,2021,2022,2023,2024,2025];
+  const LT_SEASON_LNG=[1.28,1.22,1.05,0.92,0.85,0.83,0.88,0.90,0.92,1.00,1.12,1.24];
+  const LT_SEASON_DEM=[1.10,1.06,0.98,0.92,0.94,1.02,1.14,1.18,1.06,0.95,0.98,1.08];
+  const LT_LNG_SHARE={land:0.62,jeju:0.74};
+  const LT_JEJU_MULT=1.14;
+  const LT_HIST_MONTHLY=[
+    [2022,[140,150,180,170,160,150,160,170,175,160,170,200]],
+    [2023,[245,210,165,155,150,145,150,150,150,145,150,160]],
+    [2024,[150,145,130,125,120,118,125,130,128,120,125,140]],
+    [2025,[138,132,122,118,115,116,124,128,122,116,120,132]]
+  ];
   const EC_RATIO={
     0:{pv:6.13,ess_2h:32.71,ess_4h:57.39,ess_6h:71.26,ess_8h:78.58},
     1:{pv:2.40,ess_2h:27.75,ess_4h:48.30,ess_6h:65.70,ess_8h:73.41},
@@ -1057,47 +1079,78 @@
   }
 
   // ===== 장기 SMP 전망 =====
+  function ltLngVarCost(lngUsd,fxMult,eff,co2Mult){
+    const fuel=lngUsd*1350*fxMult/252000*(860/eff);
+    const env=14*co2Mult;
+    return {fuel:+fuel.toFixed(1),env:+env.toFixed(1),total:+(fuel+env).toFixed(1)};
+  }
   function ltCalc(){
     const g=id=>+$('#'+id).value;
-    const fuel=g('lt-fuel'),re=g('lt-re'),co2=g('lt-co2'),base=g('lt-base'),dem=g('lt-dem');
-    $('#o-lt-fuel').textContent=fuel.toFixed(1); $('#o-lt-re').textContent=re;
-    $('#o-lt-co2').textContent=co2.toFixed(1); $('#o-lt-base').textContent=base; $('#o-lt-dem').textContent=dem.toFixed(1);
-    const scenarioBias={low:-1.2,base:0,high:1.5}[ltScn];
-    const drift=fuel*0.9+co2*0.6+dem*1.1-re*0.7-(base-30)*0.4+scenarioBias;
-    const hist=HIST_SMP[ltRegion];
-    const forecastYears=[]; for(let y=2026;y<=2035;y++) forecastYears.push(y);
-    const mid=forecastYears.map((y,i)=>+(hist[2025]*Math.pow(1+drift/100,i+1)).toFixed(1));
-    const lo=mid.map((v,i)=>+(v*(1-0.06-0.012*i)).toFixed(1));
-    const hi=mid.map((v,i)=>+(v*(1+0.06+0.012*i)).toFixed(1));
-    const histAvg=(hist[2020]+hist[2021]+hist[2022]+hist[2023]+hist[2024])/5;
-    $('#lt-hist').innerHTML=Math.round(histAvg)+'<small>2020-24</small>';
-    $('#lt-now').innerHTML=Math.round(mid[0])+'<small>원/kWh</small>';
-    $('#lt-end').innerHTML=Math.round(mid[9])+'<small>원/kWh</small>';
-    $('#lt-cagr').innerHTML=(drift>=0?'+':'')+drift.toFixed(1)+'<small>%/yr</small>';
-    $('#lt-tip').textContent='과거 5년 평균 '+Math.round(histAvg)+'원 대비 2035년 전망 '+Math.round(mid[9])+'원'
-      +(mid[9]>histAvg?'입니다. 연료비·탄소가·수요 상승 가정이 가격을 밀어 올립니다.':'입니다. 재생E 보급·기저 확대 가정이 가격을 누릅니다.');
-    const years=HIST_YEARS.concat(forecastYears);
-    const histLine=HIST_YEARS.map(y=>hist[y]).concat(forecastYears.map(()=>null));
-    const midLine=HIST_YEARS.map((y,i)=>i===HIST_YEARS.length-1?hist[y]:null).concat(mid);
-    const loStack=years.map((y,i)=>i<HIST_YEARS.length?null:lo[i-HIST_YEARS.length]);
-    const bandStack=years.map((y,i)=>i<HIST_YEARS.length?null:+(hi[i-HIST_YEARS.length]-lo[i-HIST_YEARS.length]).toFixed(1));
+    const lng0=g('lt-lng0'),lngTrend=g('lt-lngT'),fxTrend=g('lt-fxT'),eff=g('lt-eff')/100,co2=g('lt-co2'),re=g('lt-re'),lag=g('lt-lag');
+    $('#o-lt-lng0').textContent=lng0.toFixed(1); $('#o-lt-lngT').textContent=lngTrend.toFixed(1); $('#o-lt-fxT').textContent=fxTrend.toFixed(1);
+    $('#o-lt-eff').textContent=g('lt-eff'); $('#o-lt-co2').textContent=co2.toFixed(1); $('#o-lt-re').textContent=re; $('#o-lt-lag').textContent=lag;
+    const scenarioMult={low:0.88,base:1.0,high:1.18}[ltScn];
+    const vc=ltLngVarCost(lng0,1,eff,1);
+    const share=Math.max(0.25,LT_LNG_SHARE[ltRegion]*(1-re*0.004));
+    const regionMult=ltRegion==='jeju'?LT_JEJU_MULT:1;
+    const histMonths=[],histVals=[];
+    LT_HIST_MONTHLY.forEach(([y,arr])=>arr.forEach((v,m)=>{histMonths.push(y+'.'+String(m+1).padStart(2,'0'));histVals.push(ltRegion==='jeju'?Math.round(v*LT_JEJU_MULT):v);}));
+    const fMonths=[],mid=[],lo=[],hi=[];
+    for(let y=2026;y<=2035;y++){
+      for(let m=0;m<12;m++){
+        const yearsFrom=(y-2025)+(m-5)/12;
+        const lagMonth=(m-lag+12)%12;
+        const lngPrice=lng0*Math.pow(1+lngTrend/100,yearsFrom)*LT_SEASON_LNG[lagMonth]*scenarioMult;
+        const fx=Math.pow(1+fxTrend/100,yearsFrom);
+        const co2Mult=Math.pow(1+co2/100,yearsFrom);
+        const cost=ltLngVarCost(lngPrice,fx,eff,co2Mult);
+        const smp=(cost.total*share+95*(1-share))*LT_SEASON_DEM[m]*regionMult;
+        const v=+smp.toFixed(1);
+        fMonths.push(y+'.'+String(m+1).padStart(2,'0'));
+        mid.push(v);
+        const yearIdx=y-2026;
+        lo.push(+(v*(1-0.07-0.012*yearIdx)).toFixed(1));
+        hi.push(+(v*(1+0.07+0.012*yearIdx)).toFixed(1));
+      }
+    }
+    const histAvg=histVals.reduce((a,c)=>a+c,0)/histVals.length;
+    const avg=arr=>arr.reduce((a,c)=>a+c,0)/arr.length;
+    $('#lt-hist').innerHTML=Math.round(histAvg)+'<small>2022-25</small>';
+    $('#lt-vc').innerHTML=Math.round(vc.total*regionMult)+'<small>원/kWh</small>';
+    $('#lt-now').innerHTML=Math.round(avg(mid.slice(0,12)))+'<small>원/kWh</small>';
+    $('#lt-end').innerHTML=Math.round(avg(mid.slice(-12)))+'<small>원/kWh</small>';
+    const totalCost=vc.fuel+vc.env;
+    $('#lt-vbar').innerHTML='<div style="width:'+(vc.fuel/totalCost*100)+'%;background:#F6C445">'+Math.round(vc.fuel)+'원</div><div style="width:'+(vc.env/totalCost*100)+'%;background:#C792EA;color:#fff">'+Math.round(vc.env)+'원</div>';
+    const winter26=Math.round((mid[0]+mid[1]+mid[11])/3);
+    const summer26=Math.round((mid[6]+mid[7])/2);
+    $('#lt-tip').textContent='LNG '+lng0.toFixed(1)+'$/MMBtu, 효율 '+g('lt-eff')+'% 기준 현재 LNG 변동비는 약 '+Math.round(vc.total)+'원/kWh입니다. '
+      +'2026년 겨울 평균은 약 '+winter26+'원, 여름 평균은 약 '+summer26+'원으로 추정됩니다. LNG 한계비율은 '+Math.round(share*100)+'%로 적용했습니다.';
+    const months=histMonths.concat(fMonths);
+    const pad=histMonths.length;
+    const histLine=histVals.concat(fMonths.map(()=>null));
+    const midLine=histMonths.map((x,i)=>i===pad-1?histVals[i]:null).concat(mid);
+    const loStack=months.map((x,i)=>i<pad?null:lo[i-pad]);
+    const bandStack=months.map((x,i)=>i<pad?null:+(hi[i-pad]-lo[i-pad]).toFixed(1));
     if(!ltChart) ltChart=echarts.init($('#ltChart'));
-    ltChart.setOption({grid:{left:46,right:18,top:16,bottom:42},
+    ltChart.setOption({grid:{left:46,right:18,top:16,bottom:58},
       tooltip:{trigger:'axis',backgroundColor:'#0E1116',borderColor:'#28313D',textStyle:{color:'#E8EDF4'}},
       legend:{data:['실측','전망 중앙','P10-P90'],bottom:0,textStyle:{color:'#8C97A8',fontSize:11},selectedMode:false,itemWidth:18},
-      xAxis:{type:'category',data:years,boundaryGap:false,axisTick:{show:false},axisLine:{lineStyle:{color:'#28313D'}},axisLabel:{color:'#8C97A8',fontSize:11}},
+      dataZoom:[{type:'slider',start:40,end:100,height:14,bottom:24,borderColor:'#28313D',textStyle:{color:'#8C97A8',fontSize:9}},{type:'inside'}],
+      xAxis:{type:'category',data:months,boundaryGap:false,axisTick:{show:false},axisLine:{lineStyle:{color:'#28313D'}},axisLabel:{color:'#8C97A8',fontSize:9,interval:5}},
       yAxis:{type:'value',scale:true,splitLine:{lineStyle:{color:'rgba(40,49,61,.5)'}},axisLabel:{color:'#8C97A8',fontSize:10,fontFamily:'IBM Plex Mono',formatter:'{value}원'}},
       series:[
         {name:'P10-P90',type:'line',data:loStack,stack:'band',lineStyle:{opacity:0},symbol:'none',silent:true,z:1},
-        {name:'P10-P90',type:'line',data:bandStack,stack:'band',lineStyle:{opacity:0},areaStyle:{color:'rgba(57,138,221,.14)'},symbol:'none',silent:true,z:1},
-        {name:'실측',type:'line',data:histLine,smooth:true,symbol:'circle',symbolSize:5,lineStyle:{width:2.4,color:'#8C97A8'},itemStyle:{color:'#8C97A8'},z:4,
-          markLine:{silent:true,symbol:'none',lineStyle:{color:'#5F6B7A',type:'dashed'},data:[{xAxis:'2025'}],label:{formatter:'현재',color:'#8C97A8',fontSize:10}}},
-        {name:'전망 중앙',type:'line',data:midLine,smooth:true,symbol:'none',lineStyle:{width:2.6,color:'#6EA8FE'},z:5}
+        {name:'P10-P90',type:'line',data:bandStack,stack:'band',lineStyle:{opacity:0},areaStyle:{color:'rgba(246,196,69,.13)'},symbol:'none',silent:true,z:1},
+        {name:'실측',type:'line',data:histLine,smooth:false,symbol:'none',lineStyle:{width:1.8,color:'#8C97A8'},z:4,
+          markLine:{silent:true,symbol:'none',lineStyle:{color:'#5F6B7A',type:'dashed'},data:[{xAxis:pad-1}],label:{formatter:'현재',color:'#8C97A8',fontSize:10}}},
+        {name:'전망 중앙',type:'line',data:midLine,smooth:false,symbol:'none',lineStyle:{width:1.9,color:'#F6C445'},z:5,
+          markLine:{silent:true,symbol:'none',lineStyle:{color:'#C792EA',type:'dotted',width:1.2},
+            data:[{yAxis:Math.round(vc.total*regionMult),label:{formatter:'LNG 변동비 '+Math.round(vc.total*regionMult)+'원',color:'#C792EA',fontSize:9,position:'insideEndTop'}}]}}
       ]},true);
   }
   function initLongterm(){
     if(!ltInited){
-      ['lt-fuel','lt-re','lt-co2','lt-base','lt-dem'].forEach(id=>$('#'+id).addEventListener('input',ltCalc));
+      ['lt-lng0','lt-lngT','lt-fxT','lt-eff','lt-co2','lt-re','lt-lag'].forEach(id=>$('#'+id).addEventListener('input',ltCalc));
       const scenario=s=>{ltScn=s; $('#lt-low').setAttribute('aria-pressed',s==='low'); $('#lt-base2').setAttribute('aria-pressed',s==='base'); $('#lt-high').setAttribute('aria-pressed',s==='high'); ltCalc();};
       $('#lt-low').onclick=()=>scenario('low'); $('#lt-base2').onclick=()=>scenario('base'); $('#lt-high').onclick=()=>scenario('high');
       const region=r=>{ltRegion=r; $('#lt-land').setAttribute('aria-pressed',r==='land'); $('#lt-jeju').setAttribute('aria-pressed',r==='jeju'); ltCalc();};
