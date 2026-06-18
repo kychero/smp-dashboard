@@ -1,0 +1,498 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>전력소매 가격 전망 · 직접구매 경제성</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<script src="./echarts.min.js"></script>
+<script>
+  window.echarts || document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.1/echarts.min.js"><\/script>');
+</script>
+<style>
+  :root{
+    --bg:#0E1116; --panel:#151A21; --panel-2:#1B222B; --line:#28313D;
+    --text:#E8EDF4; --muted:#8C97A8;
+    --peak:#FFB22E; --offpeak:#39C2D6; --ensemble:#FFE7A8;
+    --champ:#54D6A0; --good:#54D6A0; --bad:#FF6B6B; --violet:#C792EA;
+    --r:14px;
+    --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+    --sans:'Pretendard',-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;
+  }
+  *{box-sizing:border-box} html,body{margin:0;padding:0}
+  body{background:
+      radial-gradient(1200px 500px at 78% -10%, rgba(255,178,46,.06), transparent 60%),
+      radial-gradient(900px 500px at 0% 0%, rgba(57,194,214,.05), transparent 55%), var(--bg);
+    color:var(--text);font-family:var(--sans);-webkit-font-smoothing:antialiased;line-height:1.4}
+  .num{font-family:var(--mono);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+  .wrap{max-width:1320px;margin:0 auto;padding:20px 22px 40px}
+  .top{display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding:6px 2px 18px}
+  .brand{display:flex;align-items:center;gap:11px;margin-right:auto}
+  .brand h1{font-size:16px;font-weight:700;margin:0;letter-spacing:-.01em}
+  .brand .sub{font-size:11.5px;color:var(--muted);margin-top:2px}
+  .app{display:grid;grid-template-columns:208px 1fr;min-height:100vh}
+  .side{border-right:1px solid var(--line);padding:18px 14px;display:flex;flex-direction:column;gap:6px;position:sticky;top:0;height:100vh}
+  .side .logo{display:flex;align-items:center;gap:10px;margin:0 4px 16px}
+  .side .logo h1{font-size:14px;margin:0;font-weight:700}
+  .side .logo .sub{font-size:10.5px;color:var(--muted)}
+  .spark{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,var(--offpeak),var(--peak));
+    display:grid;place-items:center;box-shadow:0 0 0 1px rgba(255,255,255,.08),0 6px 20px rgba(255,178,46,.18)}
+  .spark svg{width:18px;height:18px}
+  .nav{display:flex;flex-direction:column;gap:3px}
+  .nav a{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:9px;color:var(--muted);text-decoration:none;font-size:13.5px;font-weight:600;cursor:pointer}
+  .nav a:hover{background:var(--panel-2);color:var(--text)}
+  .nav a.active{background:var(--panel-2);color:var(--text);box-shadow:inset 0 0 0 1px var(--line)}
+  .nav a svg{width:17px;height:17px;opacity:.85;flex:none}
+  .navgrp{font-size:10.5px;color:var(--muted);font-weight:700;padding:10px 12px 3px;text-transform:uppercase;letter-spacing:.03em}
+  .side .foot-side{margin-top:auto;font-size:10.5px;color:var(--muted);padding:0 4px;line-height:1.6}
+  .main{min-width:0}
+  .view{display:none}
+  .view.active{display:block}
+  .rev-grid{display:grid;grid-template-columns:330px minmax(0,1fr);gap:14px}
+  .rev-inputs{display:flex;flex-direction:column;gap:14px}
+  .ipanel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px;display:flex;flex-direction:column;gap:13px}
+  .ipanel h3{font-size:13.5px;margin:0;font-weight:700}
+  .ipanel .gh{font-size:10.5px;color:var(--muted);font-weight:700;letter-spacing:.03em;text-transform:uppercase;border-top:1px solid var(--line);padding-top:11px;margin-top:2px}
+  .ipanel .gh:first-of-type{border-top:0;padding-top:0;margin-top:0}
+  .field .lab{display:flex;justify-content:space-between;font-size:12.5px;color:var(--muted);margin-bottom:3px}
+  .field .lab b{color:var(--text)}
+  .field input[type=range]{width:100%;accent-color:var(--peak)}
+  .field select,.field input[type=number]{width:100%;background:var(--panel-2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:7px 9px;font-family:var(--sans);font-size:12.5px}
+  .seg{display:flex;background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:3px;gap:2px}
+  .seg button{flex:1;font-family:var(--sans);font-size:12px;color:var(--muted);background:none;border:0;padding:6px 8px;border-radius:7px;cursor:pointer;font-weight:600}
+  .seg button[aria-pressed="true"]{background:var(--panel);color:var(--text);box-shadow:inset 0 0 0 1px var(--line)}
+  .rev-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+  .rev-card{background:var(--panel-2);border-radius:10px;padding:13px;position:relative;overflow:hidden}
+  .rev-card .edge{position:absolute;left:0;top:0;bottom:0;width:3px}
+  .rev-card .l{font-size:11.5px;color:var(--muted)}
+  .rev-card .v{font-size:23px;font-weight:600;margin-top:4px}
+  .rev-card .v small{font-size:12px;color:var(--muted);font-weight:500;margin-left:3px}
+  .rev-card .u{font-size:10.5px;color:var(--muted);margin-top:3px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px;margin-bottom:14px}
+  .card h2{font-size:13.5px;margin:0 0 2px;font-weight:700;letter-spacing:-.01em}
+  .card .desc{font-size:11.5px;color:var(--muted);margin:0 0 10px}
+  .ch{width:100%;height:300px}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .row2 .card{margin-bottom:0}
+  .verdict{display:flex;align-items:center;gap:10px;font-size:13px;padding:11px 14px;border-radius:11px;margin-bottom:14px;font-weight:600}
+  .verdict.good{background:rgba(84,214,160,.12);border:1px solid rgba(84,214,160,.4);color:#9DEBC6}
+  .verdict.bad{background:rgba(255,107,107,.1);border:1px solid rgba(255,107,107,.4);color:#FFC9C9}
+  .foot{margin-top:22px;font-size:11px;color:var(--muted);line-height:1.7}
+  .pageHead{margin:2px 0 16px}
+  .pageHead h2{font-size:20px;margin:0;font-weight:700;letter-spacing:-.01em}
+  .pageHead p{font-size:12.5px;color:var(--muted);margin:5px 0 0}
+  .ttip{font-family:var(--sans);font-size:12px}
+  @media (max-width:1000px){.rev-grid{grid-template-columns:1fr}.rev-cards{grid-template-columns:repeat(2,1fr)}.row2{grid-template-columns:1fr}}
+  @media (max-width:900px){.app{grid-template-columns:1fr}.side{position:static;height:auto;flex-direction:row;flex-wrap:wrap;border-right:0;border-bottom:1px solid var(--line)}.side .foot-side{display:none}.nav{flex-direction:row;flex-wrap:wrap}}
+  body.embedded .app{grid-template-columns:1fr;min-height:0}
+  body.embedded .side{display:none}
+  body.embedded .wrap{max-width:none;padding:0}
+  :focus-visible{outline:2px solid var(--peak);outline-offset:2px;border-radius:6px}
+</style>
+</head>
+<body>
+<script>if(window.self!==window.top){document.body.classList.add('embedded');}</script>
+<div class="app">
+  <aside class="side">
+    <div class="logo">
+      <div class="spark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z" fill="#0E1116"/></svg></div>
+      <div><h1>SMP · VPP</h1><div class="sub">예측 · 수익 분석</div></div>
+    </div>
+    <nav class="nav" id="nav">
+      <div class="navgrp">분석</div>
+      <a href="./index.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 17l5-6 4 3 5-7 4 4"/></svg>내일 예측</a>
+      <a href="./index.html#longterm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18L9 12l4 3 8-9"/><path d="M21 6v5h-5"/></svg>장기 SMP 전망</a>
+      <a href="./index.html#ppa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V5M4 9h16M4 14h16M20 19V5"/></svg>PPA 가격 전망</a>
+      <a data-view="retail" class="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg>전력소매 가격 전망</a>
+      <a data-view="direct"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>직접구매 경제성</a>
+      <div class="navgrp">수익</div>
+      <a href="./index.html#plant"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V8l8-4 8 4v12"/><path d="M8 20v-8h8v8"/></svg>발전소 수익분석</a>
+      <a href="./index.html#revenue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22M17 5H9a3 3 0 000 6h6a3 3 0 010 6H7"/></svg>ESS 수익계산</a>
+      <div class="navgrp">시스템</div>
+      <a href="./index.html#about"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.5v.5"/></svg>정보</a>
+    </nav>
+    <div class="foot-side">소매요금·직접구매 모듈 · 2026-06 기준</div>
+  </aside>
+
+  <div class="main">
+  <div class="wrap">
+
+  <!-- ============ PAGE 1 : 전력소매 가격 전망 ============ -->
+  <section id="view-retail" class="view active">
+    <div class="pageHead">
+      <h2>전력소매 가격 전망</h2>
+      <p>한전 산업용(을) 고압 요금 · 종합단가 산정 · 연도별 전망. 직접구매·PPA 경제성 평가의 기준선(회피비용)입니다.</p>
+    </div>
+
+    <div class="rev-cards">
+      <div class="rev-card"><div class="edge" style="background:var(--peak)"></div><div class="l">현재 종합단가</div><div class="v num" id="r_unit">—<small>원/kWh</small></div><div class="u" id="r_unit_sub">부가세·기금 포함</div></div>
+      <div class="rev-card"><div class="edge" style="background:var(--offpeak)"></div><div class="l">기본요금 비중</div><div class="v num" id="r_base">—<small>%</small></div><div class="u">종합단가 중 고정비</div></div>
+      <div class="rev-card"><div class="edge" style="background:var(--violet)"></div><div class="l">여름최대–경부하 격차</div><div class="v num" id="r_spread">—<small>원</small></div><div class="u">TOU 차익 잠재력</div></div>
+      <div class="rev-card"><div class="edge" style="background:var(--ensemble)"></div><div class="l" id="r_proj_lab">2030 전망단가</div><div class="v num" id="r_proj">—<small>원/kWh</small></div><div class="u" id="r_proj_sub">기준 시나리오</div></div>
+    </div>
+
+    <div class="rev-grid">
+      <div class="rev-inputs">
+        <div class="ipanel">
+          <h3>수용가 · 계약</h3>
+          <div class="field"><div class="lab">전압 구분</div><div class="seg" id="r_volt"><button data-v="A" aria-pressed="true">고압A</button><button data-v="B">고압B</button><button data-v="C">고압C</button></div></div>
+          <div class="field"><div class="lab">선택요금 (가동시간)</div><div class="seg" id="r_sel"><button data-v="1">Ⅰ</button><button data-v="2">Ⅱ</button><button data-v="3" aria-pressed="true">Ⅲ</button></div></div>
+          <div class="field"><div class="lab">계약전력 <b><span id="r_cp_v">10,000</span> kW</b></div><input type="range" id="r_cp" min="300" max="50000" step="100" value="10000"></div>
+          <div class="field"><div class="lab">부하율 <b><span id="r_lf_v">65</span> %</b></div><input type="range" id="r_lf" min="20" max="95" step="1" value="65"></div>
+
+          <div class="gh">시간대 사용 분포</div>
+          <div class="field"><div class="lab">경부하 <b><span id="r_off_v">45</span> %</b></div><input type="range" id="r_off" min="0" max="100" step="1" value="45"></div>
+          <div class="field"><div class="lab">중간부하 <b><span id="r_mid_v">35</span> %</b></div><input type="range" id="r_mid" min="0" max="100" step="1" value="35"></div>
+          <div class="field"><div class="lab">최대부하 <b><span id="r_pk_v">20</span> %</b></div><input type="range" id="r_pk" min="0" max="100" step="1" value="20"></div>
+
+          <div class="gh">부과 요소</div>
+          <div class="field"><div class="lab">기후환경요금 <b><span id="r_cc_v">9.0</span> 원/kWh</b></div><input type="range" id="r_cc" min="0" max="20" step="0.5" value="9"></div>
+          <div class="field"><div class="lab">연료비조정 <b><span id="r_fc_v">5.0</span> 원/kWh</b></div><input type="range" id="r_fc" min="-5" max="5" step="0.5" value="5"></div>
+          <div class="field"><div class="lab">전력산업기반기금</div><div class="seg" id="r_fund"><button data-v="2.7" aria-pressed="true">2.7%</button><button data-v="3.7">3.7%</button></div></div>
+
+          <div class="gh">전망 시나리오</div>
+          <div class="field"><div class="lab">연 요금 인상률 <b><span id="r_esc_v">2.5</span> %/yr</b></div><input type="range" id="r_esc" min="0" max="7" step="0.5" value="2.5"></div>
+        </div>
+      </div>
+
+      <div>
+        <div class="card"><h2>연도별 산업용 종합단가 전망</h2><p class="desc">현재 단가에 연 인상률을 적용한 경로. 음영은 동결(0%)~상승(+5%) 범위. 직접구매가 회피하는 비용의 미래값입니다.</p><div id="r_chart_proj" class="ch"></div></div>
+        <div class="row2">
+          <div class="card"><h2>계절 × 시간대 전력량요금</h2><p class="desc">선택 전압·선택요금의 원/kWh 단가. 여름 최대부하가 가장 비쌉니다.</p><div id="r_chart_tou" class="ch" style="height:280px"></div></div>
+          <div class="card"><h2>종합단가 구성 분해</h2><p class="desc">기본요금·전력량·기후환경·연료비·세금/기금 비중.</p><div id="r_chart_comp" class="ch" style="height:280px"></div></div>
+        </div>
+        <div class="foot">단가표 출처: 한전 통합 전기요금표(2025.4.1 시행, 2024.10.24 인상 반영). 종합단가 = (기본요금환산 + 전력량요금 가중 + 기후환경 + 연료비조정) × (1+부가세 10%) × (1+기금). 기본요금환산 = 기본요금단가 × 계약전력 ÷ 월사용량(=계약전력×730h×부하율). 계절가중: 여름 3개월·봄가을 5개월·겨울 4개월. ※ 2025 산업용 공식 연단가 미발표, 인상률은 시나리오 가정값.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PAGE 2 : 직접구매 경제성 ============ -->
+  <section id="view-direct" class="view">
+    <div class="pageHead">
+      <h2>직접구매 시 수요기업 경제성 평가</h2>
+      <p>전력시장(KPX) 직접구매(전기사업법 제32조, 수전설비 30MVA↑) 총원가를 한전 산업용 소매요금과 비교합니다.</p>
+    </div>
+
+    <div id="d_verdict" class="verdict good"><span id="d_verdict_txt">—</span></div>
+
+    <div class="rev-cards">
+      <div class="rev-card"><div class="edge" style="background:var(--good)"></div><div class="l">연간 절감액</div><div class="v num" id="d_save">—<small>만원</small></div><div class="u" id="d_save_sub">소매 − 직접</div></div>
+      <div class="rev-card"><div class="edge" style="background:var(--peak)"></div><div class="l">절감률</div><div class="v num" id="d_rate">—<small>%</small></div><div class="u">소매요금 대비</div></div>
+      <div class="rev-card"><div class="edge" style="background:var(--offpeak)"></div><div class="l">직접구매 종합단가</div><div class="v num" id="d_unit">—<small>원/kWh</small></div><div class="u" id="d_unit_sub">vs 소매 <span id="d_retail">—</span></div></div>
+      <div class="rev-card"><div class="edge" style="background:var(--violet)"></div><div class="l">손익분기 SMP</div><div class="v num" id="d_be">—<small>원/kWh</small></div><div class="u">이하면 직접구매 유리</div></div>
+    </div>
+
+    <div class="rev-grid">
+      <div class="rev-inputs">
+        <div class="ipanel">
+          <h3>수용가</h3>
+          <div class="field"><div class="lab">계약전력 <b><span id="d_cp_v">10,000</span> kW</b></div><input type="range" id="d_cp" min="300" max="50000" step="100" value="10000"></div>
+          <div class="field"><div class="lab">수전설비 <b><span id="d_rx_v">33,000</span> kVA</b></div><input type="range" id="d_rx" min="0" max="100000" step="1000" value="33000"></div>
+          <div class="field"><div class="lab">부하율 <b><span id="d_lf_v">65</span> %</b></div><input type="range" id="d_lf" min="20" max="95" step="1" value="65"></div>
+          <div class="field"><div class="lab" id="d_qual" style="color:var(--good)">✓ 30MVA 이상 — 직접구매 자격</div></div>
+
+          <div class="gh">소매 기준선</div>
+          <div class="field"><div class="lab">전압 / 선택</div><div style="display:flex;gap:8px">
+            <select id="d_volt"><option value="A">고압A</option><option value="B">고압B</option><option value="C">고압C</option></select>
+            <select id="d_sel"><option value="1">선택Ⅰ</option><option value="2">선택Ⅱ</option><option value="3" selected>선택Ⅲ</option></select>
+          </div></div>
+
+          <div class="gh">전력시장 구매원가</div>
+          <div class="field"><div class="lab">SMP 평균 <b><span id="d_smp_v">115</span> 원/kWh</b></div><input type="range" id="d_smp" min="80" max="220" step="1" value="115"></div>
+          <div class="field"><div class="lab">용량정산금 RCP <b><span id="d_rcp_v">13.71</span> 원/kWh</b></div><input type="range" id="d_rcp" min="0" max="30" step="0.5" value="13.71"></div>
+          <div class="field"><div class="lab">부가·기타정산금 <b><span id="d_up_v">4.0</span> 원/kWh</b></div><input type="range" id="d_up" min="0" max="15" step="0.5" value="4"></div>
+          <div class="field"><div class="lab">망 사용요금(송+배전) <b><span id="d_net_v">3.5</span> 원/kWh</b></div><input type="range" id="d_net" min="0" max="15" step="0.1" value="3.5"></div>
+          <div class="field"><div class="lab">망 기본요금 <b><span id="d_netb_v">700</span> 원/kW</b></div><input type="range" id="d_netb" min="0" max="2000" step="10" value="700"></div>
+          <div class="field"><div class="lab">KPX 거래수수료 <b><span id="d_fee_v">0.10</span> 원/kWh</b></div><input type="range" id="d_fee" min="0" max="1" step="0.01" value="0.10"></div>
+          <div class="field"><div class="lab">전력산업기반기금</div><div class="seg" id="d_fund"><button data-v="2.7" aria-pressed="true">2.7%</button><button data-v="3.7">3.7%</button></div></div>
+
+          <div class="gh">1회성 설비 · 전망</div>
+          <div class="field"><div class="lab">계량·통신 CAPEX <b><span id="d_cap_v">500</span> 만원</b></div><input type="range" id="d_cap" min="0" max="3000" step="50" value="500"></div>
+          <div class="field"><div class="lab">회수기간 <b><span id="d_yr_v">3</span> 년</b></div><input type="range" id="d_yr" min="1" max="10" step="1" value="3"></div>
+          <div class="field"><div class="lab">SMP 추세 <b><span id="d_strend_v">1.5</span> %/yr</b></div><input type="range" id="d_strend" min="-3" max="6" step="0.5" value="1.5"></div>
+          <div class="field"><div class="lab">소매 인상률 <b><span id="d_rtrend_v">2.5</span> %/yr</b></div><input type="range" id="d_rtrend" min="0" max="7" step="0.5" value="2.5"></div>
+        </div>
+      </div>
+
+      <div>
+        <div class="card"><h2>소매 vs 직접구매 원가 비교</h2><p class="desc">원/kWh 기준 종합단가. 막대 높이 차이가 절감폭입니다.</p><div id="d_chart_stack" class="ch" style="height:340px"></div></div>
+        <div class="row2">
+          <div class="card"><h2>20년 누적 절감 — SMP 시나리오</h2><p class="desc">SMP·소매 추세 반영 누적 절감액(억원). 0선 아래면 직접구매 손해.</p><div id="d_chart_cum" class="ch" style="height:280px"></div></div>
+          <div class="card"><h2>손익분기 SMP 민감도</h2><p class="desc">현재 SMP와 손익분기점. 막대가 분기선 왼쪽이면 유리.</p><div id="d_chart_be" class="ch" style="height:280px"></div></div>
+        </div>
+        <div class="foot">직접구매 총원가 = [SMP + 용량정산금환산 + 부가정산금 + 망사용요금 + 망기본환산 + 거래수수료] × (1+기금) × (1+부가세) + 설비환산. 용량정산금환산 = RCP × 적용전력 ÷ 평균전력(적용전력 = max(계약전력, 수전설비×30%)) — 부하율이 낮을수록 페널티. 자격: 전기사업법 제32조 수전설비 30,000kVA 이상. 제도 주의: 의무존속 3년·조기이탈 시 최대 9년 재진입 제한·SMP 가격헤지 부재. ※ 망 별표 단가 등은 라이브 확인 권장 — 모든 값은 조정 가능한 파라미터입니다.</div>
+      </div>
+    </div>
+  </section>
+
+  </div>
+  </div>
+</div>
+
+<script>
+// ============== 데이터: 산업용(을) 요금표 (2024.10.24 인상, 2025.4.1 시행) ==============
+// rates[season] = [경부하, 중간부하, 최대부하] 원/kWh
+const TARIFF = {
+  A: { base:{1:7220,2:8320,3:9810},
+    1:{summer:[116.4,169.3,251.4],spring:[116.4,138.9,169.6],winter:[123.4,169.5,227.0]},
+    2:{summer:[110.9,163.8,245.9],spring:[110.9,133.4,164.1],winter:[117.9,164.0,221.5]},
+    3:{summer:[110.0,163.2,233.5],spring:[110.0,132.1,155.8],winter:[117.3,163.4,210.3]} },
+  B: { base:{1:6630,2:7380,3:8190},
+    1:{summer:[126.3,178.6,259.8],spring:[126.3,148.6,178.9],winter:[133.3,178.6,234.8]},
+    2:{summer:[122.5,174.8,256.0],spring:[122.5,144.8,175.1],winter:[129.5,174.8,231.0]},
+    3:{summer:[120.8,173.1,254.4],spring:[120.8,143.2,173.5],winter:[127.9,173.1,229.3]} },
+  C: { base:{1:6590,2:7520,3:8090},
+    1:{summer:[125.8,178.7,259.6],spring:[125.8,148.7,179.1],winter:[132.7,178.3,234.9]},
+    2:{summer:[121.1,174.0,254.9],spring:[121.1,144.0,174.4],winter:[128.0,173.6,230.2]},
+    3:{summer:[120.0,172.9,253.8],spring:[120.0,142.9,173.3],winter:[126.9,172.5,229.1]} }
+};
+const VAT = 0.10;
+const SEASON_W = {summer:3/12, spring:5/12, winter:4/12}; // 월수 가중
+const HOURS_MONTH = 730;
+const fmt = (n,d=1)=> n.toLocaleString('ko-KR',{minimumFractionDigits:d,maximumFractionDigits:d});
+const fmt0 = n=> Math.round(n).toLocaleString('ko-KR');
+
+// 차트 공통 테마
+const AX = {axisLine:{lineStyle:{color:'#28313D'}},axisLabel:{color:'#8C97A8',fontSize:11},splitLine:{lineStyle:{color:'rgba(40,49,61,.5)'}}};
+const TT = {backgroundColor:'#1B222B',borderColor:'#28313D',textStyle:{color:'#E8EDF4',fontSize:12},extraCssText:'border-radius:8px'};
+function mkChart(id){ const c=echarts.init(document.getElementById(id),null,{renderer:'canvas'}); return c; }
+
+// 시간대 분포 (정규화)
+function touShares(off,mid,pk){ const s=off+mid+pk||1; return [off/s,mid/s,pk/s]; }
+// 전력량요금 가중평균 (선택 전압/선택요금)
+function energyRate(volt,sel,shares){
+  const t=TARIFF[volt][sel]; let tot=0;
+  for(const sea of ['summer','spring','winter']){
+    const r=t[sea]; const seaRate=shares[0]*r[0]+shares[1]*r[1]+shares[2]*r[2];
+    tot += SEASON_W[sea]*seaRate;
+  }
+  return tot;
+}
+
+// ================= PAGE 1 =================
+let rProj, rTou, rComp;
+function retailState(){
+  const volt=document.querySelector('#r_volt [aria-pressed=true]').dataset.v;
+  const sel=document.querySelector('#r_sel [aria-pressed=true]').dataset.v;
+  const cp=+r_cp.value, lf=+r_lf.value/100;
+  const shares=touShares(+r_off.value,+r_mid.value,+r_pk.value);
+  const cc=+r_cc.value, fc=+r_fc.value, fund=+document.querySelector('#r_fund [aria-pressed=true]').dataset.v/100;
+  const esc=+r_esc.value/100;
+  const usage = cp*HOURS_MONTH*lf;             // 월사용량 kWh
+  const baseUnit = TARIFF[volt].base[sel]*cp/usage; // 기본요금 환산 원/kWh
+  const eRate = energyRate(volt,sel,shares);
+  const preTax = baseUnit + eRate + cc + fc;
+  const total = preTax*(1+VAT)*(1+fund);
+  return {volt,sel,cp,lf,shares,cc,fc,fund,esc,usage,baseUnit,eRate,preTax,total};
+}
+function renderRetail(){
+  const s=retailState();
+  // labels
+  r_cp_v.textContent=(+r_cp.value).toLocaleString(); r_lf_v.textContent=r_lf.value;
+  r_off_v.textContent=r_off.value; r_mid_v.textContent=r_mid.value; r_pk_v.textContent=r_pk.value;
+  r_cc_v.textContent=fmt(+r_cc.value,1); r_fc_v.textContent=fmt(+r_fc.value,1); r_esc_v.textContent=fmt(+r_esc.value,1);
+  // KPIs
+  r_unit.innerHTML = fmt(s.total,1)+'<small>원/kWh</small>';
+  r_base.innerHTML = fmt(s.baseUnit/s.total*100,1)+'<small>%</small>';
+  const t=TARIFF[s.volt][s.sel];
+  const spread=t.summer[2]-t.summer[0];
+  r_spread.innerHTML = fmt(spread,1)+'<small>원</small>';
+  const proj = s.total*Math.pow(1+s.esc,2030-2026);
+  r_proj.innerHTML = fmt(proj,1)+'<small>원/kWh</small>';
+
+  // chart: projection
+  const yrs=[]; const mid=[],lo=[],hi=[];
+  for(let y=2026;y<=2035;y++){ yrs.push(y); const n=y-2026;
+    mid.push(+(s.total*Math.pow(1+s.esc,n)).toFixed(1));
+    lo.push(+(s.total*Math.pow(1.00,n)).toFixed(1));
+    hi.push(+(s.total*Math.pow(1.05,n)).toFixed(1));
+  }
+  rProj.setOption({
+    tooltip:{trigger:'axis',...TT,valueFormatter:v=>v?fmt(v,1)+' 원/kWh':'-'},
+    grid:{left:54,right:18,top:30,bottom:30},
+    legend:{textStyle:{color:'#8C97A8'},top:0,data:['기준 인상률','동결~상승 범위']},
+    xAxis:{type:'category',data:yrs,...AX},
+    yAxis:{type:'value',name:'원/kWh',nameTextStyle:{color:'#8C97A8'},...AX,scale:true},
+    series:[
+      {name:'동결~상승 범위',type:'line',data:lo,lineStyle:{opacity:0},stack:'band',symbol:'none',areaStyle:{color:'transparent'}},
+      {name:'동결~상승 범위',type:'line',data:hi.map((v,i)=>+(v-lo[i]).toFixed(1)),lineStyle:{opacity:0},stack:'band',symbol:'none',areaStyle:{color:'rgba(255,178,46,.12)'}},
+      {name:'기준 인상률',type:'line',data:mid,smooth:true,symbol:'circle',symbolSize:6,lineStyle:{width:3,color:'#FFB22E'},itemStyle:{color:'#FFB22E'}}
+    ]
+  });
+  // chart: tou by season
+  rTou.setOption({
+    tooltip:{trigger:'axis',...TT,valueFormatter:v=>fmt(v,1)+' 원'},
+    grid:{left:48,right:14,top:30,bottom:24},
+    legend:{textStyle:{color:'#8C97A8'},top:0},
+    xAxis:{type:'category',data:['경부하','중간부하','최대부하'],...AX},
+    yAxis:{type:'value',name:'원/kWh',nameTextStyle:{color:'#8C97A8'},...AX},
+    series:[
+      {name:'여름',type:'bar',data:t.summer,itemStyle:{color:'#FF6B6B'}},
+      {name:'봄·가을',type:'bar',data:t.spring,itemStyle:{color:'#54D6A0'}},
+      {name:'겨울',type:'bar',data:t.winter,itemStyle:{color:'#39C2D6'}}
+    ]
+  });
+  // chart: composition
+  const taxPart = s.total - s.preTax;
+  rComp.setOption({
+    tooltip:{trigger:'item',...TT,valueFormatter:v=>fmt(v,1)+' 원/kWh'},
+    legend:{textStyle:{color:'#8C97A8'},bottom:0,type:'scroll'},
+    series:[{type:'pie',radius:['42%','70%'],center:['50%','46%'],
+      label:{color:'#E8EDF4',fontSize:11,formatter:'{b}\n{d}%'},
+      data:[
+        {name:'기본요금',value:+s.baseUnit.toFixed(1),itemStyle:{color:'#39C2D6'}},
+        {name:'전력량요금',value:+s.eRate.toFixed(1),itemStyle:{color:'#FFB22E'}},
+        {name:'기후환경',value:+s.cc.toFixed(1),itemStyle:{color:'#54D6A0'}},
+        {name:'연료비조정',value:+s.fc.toFixed(1),itemStyle:{color:'#C792EA'}},
+        {name:'부가세·기금',value:+taxPart.toFixed(1),itemStyle:{color:'#8C97A8'}}
+      ]}]
+  });
+}
+
+// ================= PAGE 2 =================
+let dStack, dCum, dBe;
+function directState(){
+  const cp=+d_cp.value, rx=+d_rx.value, lf=+d_lf.value/100;
+  const volt=d_volt.value, sel=d_sel.value;
+  const smp=+d_smp.value, rcp=+d_rcp.value, up=+d_up.value, net=+d_net.value, netb=+d_netb.value, fee=+d_fee.value;
+  const fund=+document.querySelector('#d_fund [aria-pressed=true]').dataset.v/100;
+  const cap=+d_cap.value*10000, yr=+d_yr.value, strend=+d_strend.value/100, rtrend=+d_rtrend.value/100;
+  const usage=cp*HOURS_MONTH*lf;          // 월 kWh
+  const usageY=usage*12;
+  // 소매 종합단가
+  const shares=touShares(45,35,20);       // 소매 기준선은 대표 분포 사용
+  const baseUnit=TARIFF[volt].base[sel]*cp/usage;
+  const eRate=energyRate(volt,sel,shares);
+  const retail=(baseUnit+eRate+9.0+5.0)*(1+VAT)*(1+fund);
+  // 직접구매 원가
+  const applied=Math.max(cp, rx*0.30);    // 적용전력
+  const avgP=cp*lf;                        // 평균전력
+  const capUnit=rcp*applied/avgP;          // 용량정산금 환산 원/kWh
+  const netbUnit=netb*cp/usage;            // 망 기본요금 환산
+  const capexUnit=cap/(yr*usageY);         // 설비 환산
+  const preTax=smp+capUnit+up+net+netbUnit+fee;
+  const direct=preTax*(1+fund)*(1+VAT)+capexUnit;
+  const K=capUnit+up+net+netbUnit+fee;     // SMP 외 변동비
+  const beSMP=(retail-capexUnit)/((1+fund)*(1+VAT)) - K; // 손익분기 SMP
+  const savePerKwh=retail-direct;
+  const saveY=savePerKwh*usageY;
+  return {cp,rx,lf,volt,sel,smp,rcp,up,net,netb,fee,fund,cap,yr,strend,rtrend,usage,usageY,
+    retail,direct,applied,capUnit,netbUnit,capexUnit,K,beSMP,savePerKwh,saveY,baseUnit,eRate};
+}
+function renderDirect(){
+  const s=directState();
+  d_cp_v.textContent=(+d_cp.value).toLocaleString(); d_rx_v.textContent=(+d_rx.value).toLocaleString();
+  d_lf_v.textContent=d_lf.value; d_smp_v.textContent=d_smp.value; d_rcp_v.textContent=fmt(+d_rcp.value,2);
+  d_up_v.textContent=fmt(+d_up.value,1); d_net_v.textContent=fmt(+d_net.value,1); d_netb_v.textContent=(+d_netb.value).toLocaleString();
+  d_fee_v.textContent=fmt(+d_fee.value,2); d_cap_v.textContent=(+d_cap.value).toLocaleString(); d_yr_v.textContent=d_yr.value;
+  d_strend_v.textContent=fmt(+d_strend.value,1); d_rtrend_v.textContent=fmt(+d_rtrend.value,1);
+  // 자격 표시
+  const qual=s.rx>=30000;
+  d_qual.style.color=qual?'var(--good)':'var(--bad)';
+  d_qual.textContent=qual?'✓ 30MVA 이상 — 직접구매 자격':'✗ 30MVA 미만 — 직접구매 자격 미달';
+  // KPIs
+  d_save.innerHTML=fmt0(s.saveY/10000)+'<small>만원</small>';
+  d_rate.innerHTML=fmt(s.savePerKwh/s.retail*100,1)+'<small>%</small>';
+  d_unit.innerHTML=fmt(s.direct,1)+'<small>원/kWh</small>';
+  d_retail.textContent=fmt(s.retail,1);
+  d_be.innerHTML=fmt(s.beSMP,1)+'<small>원/kWh</small>';
+  // verdict
+  const good=s.savePerKwh>0;
+  const v=document.getElementById('d_verdict'); v.className='verdict '+(good?'good':'bad');
+  d_verdict_txt.textContent = good
+    ? `직접구매 유리 — 종합단가 ${fmt(s.direct,1)} < 소매 ${fmt(s.retail,1)} 원/kWh, 연 ${fmt0(s.saveY/10000)}만원 절감 (손익분기 SMP ${fmt(s.beSMP,1)}원, 현재 ${s.smp}원)`
+    : `직접구매 불리 — 종합단가 ${fmt(s.direct,1)} > 소매 ${fmt(s.retail,1)} 원/kWh. SMP가 ${fmt(s.beSMP,1)}원 이하로 내려가야 유리`;
+
+  // chart: cost stack (retail vs direct)
+  const taxR=s.retail-(s.baseUnit+s.eRate+9+5);
+  const taxD=s.direct-(s.smp+s.capUnit+s.up+s.net+s.netbUnit+s.fee)-s.capexUnit;
+  dStack.setOption({
+    tooltip:{trigger:'axis',axisPointer:{type:'shadow'},...TT,valueFormatter:v=>v?fmt(v,1)+' 원':'-'},
+    legend:{textStyle:{color:'#8C97A8'},top:0,type:'scroll'},
+    grid:{left:50,right:16,top:54,bottom:24},
+    xAxis:{type:'category',data:['한전 소매','전력시장 직접구매'],...AX},
+    yAxis:{type:'value',name:'원/kWh',nameTextStyle:{color:'#8C97A8'},...AX},
+    series:[
+      {name:'기본요금',type:'bar',stack:'x',data:[+s.baseUnit.toFixed(1),null],itemStyle:{color:'#39C2D6'}},
+      {name:'전력량요금',type:'bar',stack:'x',data:[+s.eRate.toFixed(1),null],itemStyle:{color:'#FFB22E'}},
+      {name:'기후환경+연료비',type:'bar',stack:'x',data:[14,null],itemStyle:{color:'#54D6A0'}},
+      {name:'SMP',type:'bar',stack:'x',data:[null,+s.smp.toFixed(1)],itemStyle:{color:'#FFB22E'}},
+      {name:'용량정산금',type:'bar',stack:'x',data:[null,+s.capUnit.toFixed(1)],itemStyle:{color:'#C792EA'}},
+      {name:'부가정산금',type:'bar',stack:'x',data:[null,+s.up.toFixed(1)],itemStyle:{color:'#54D6A0'}},
+      {name:'망 이용요금',type:'bar',stack:'x',data:[null,+(s.net+s.netbUnit).toFixed(1)],itemStyle:{color:'#39C2D6'}},
+      {name:'수수료+설비',type:'bar',stack:'x',data:[null,+(s.fee+s.capexUnit).toFixed(2)],itemStyle:{color:'#6B7686'}},
+      {name:'부가세·기금',type:'bar',stack:'x',data:[+taxR.toFixed(1),+taxD.toFixed(1)],itemStyle:{color:'#8C97A8'},
+        label:{show:true,position:'top',color:'#E8EDF4',fontWeight:700,formatter:p=>{const tot=p.dataIndex===0?s.retail:s.direct;return fmt(tot,0)+'원';}}}
+    ]
+  });
+  // chart: 20yr cumulative savings
+  const yrs=[],cum=[]; let acc=0;
+  for(let y=0;y<20;y++){ yrs.push(2026+y);
+    const smpY=s.smp*Math.pow(1+s.strend,y);
+    const directY=(smpY+s.K)*(1+s.fund)*(1+VAT)+s.capexUnit;
+    const retailY=s.retail*Math.pow(1+s.rtrend,y);
+    acc += (retailY-directY)*s.usageY;
+    cum.push(+(acc/1e8).toFixed(2)); // 억원
+  }
+  dCum.setOption({
+    tooltip:{trigger:'axis',...TT,valueFormatter:v=>fmt(v,2)+' 억원'},
+    grid:{left:52,right:18,top:20,bottom:28},
+    xAxis:{type:'category',data:yrs,...AX,axisLabel:{color:'#8C97A8',fontSize:10,interval:2}},
+    yAxis:{type:'value',name:'억원',nameTextStyle:{color:'#8C97A8'},...AX},
+    series:[{type:'line',data:cum,smooth:true,symbol:'none',lineStyle:{width:3,color:'#54D6A0'},
+      areaStyle:{color:'rgba(84,214,160,.12)'},
+      markLine:{silent:true,symbol:'none',lineStyle:{color:'#8C97A8',type:'dashed'},data:[{yAxis:0}]}}]
+  });
+  // chart: breakeven SMP
+  dBe.setOption({
+    tooltip:{trigger:'axis',axisPointer:{type:'shadow'},...TT,valueFormatter:v=>fmt(v,1)+' 원/kWh'},
+    grid:{left:80,right:24,top:16,bottom:28},
+    xAxis:{type:'value',name:'원/kWh',nameTextStyle:{color:'#8C97A8'},...AX},
+    yAxis:{type:'category',data:['현재 SMP','손익분기 SMP'],...AX},
+    series:[{type:'bar',data:[
+        {value:+s.smp.toFixed(1),itemStyle:{color: s.smp<=s.beSMP?'#54D6A0':'#FF6B6B'}},
+        {value:+s.beSMP.toFixed(1),itemStyle:{color:'#C792EA'}}
+      ],barWidth:22,label:{show:true,position:'right',color:'#E8EDF4',formatter:p=>fmt(p.value,1)},
+      markLine:{silent:true,symbol:'none',lineStyle:{color:'#FFB22E',type:'dashed'},
+        data:[{xAxis:+s.beSMP.toFixed(1)}],label:{show:false}}}]
+  });
+}
+
+// ================= 인터랙션 =================
+function segBind(id,cb){ document.querySelectorAll('#'+id+' button').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('#'+id+' button').forEach(x=>x.setAttribute('aria-pressed','false'));
+  b.setAttribute('aria-pressed','true'); cb();
+}));}
+['r_cp','r_lf','r_off','r_mid','r_pk','r_cc','r_fc','r_esc'].forEach(id=>document.getElementById(id).addEventListener('input',renderRetail));
+segBind('r_volt',renderRetail); segBind('r_sel',renderRetail); segBind('r_fund',renderRetail);
+['d_cp','d_rx','d_lf','d_smp','d_rcp','d_up','d_net','d_netb','d_fee','d_cap','d_yr','d_strend','d_rtrend'].forEach(id=>document.getElementById(id).addEventListener('input',renderDirect));
+['d_volt','d_sel'].forEach(id=>document.getElementById(id).addEventListener('change',renderDirect));
+segBind('d_fund',renderDirect);
+
+// nav view switching
+const views={retail:['view-retail',()=>{rProj.resize();rTou.resize();rComp.resize();}],
+             direct:['view-direct',()=>{dStack.resize();dCum.resize();dBe.resize();}]};
+document.querySelectorAll('#nav a[data-view]').forEach(a=>a.addEventListener('click',e=>{
+  e.preventDefault();
+  document.querySelectorAll('#nav a').forEach(x=>x.classList.remove('active'));
+  a.classList.add('active');
+  const v=a.dataset.view;
+  document.querySelectorAll('.view').forEach(s=>s.classList.remove('active'));
+  document.getElementById(views[v][0]).classList.add('active');
+  if(location.hash!=='#'+v) history.replaceState(null,'','#'+v);
+  setTimeout(views[v][1],30);
+}));
+
+// init
+window.addEventListener('DOMContentLoaded',()=>{
+  rProj=mkChart('r_chart_proj'); rTou=mkChart('r_chart_tou'); rComp=mkChart('r_chart_comp');
+  dStack=mkChart('d_chart_stack'); dCum=mkChart('d_chart_cum'); dBe=mkChart('d_chart_be');
+  renderRetail(); renderDirect();
+  if(location.hash==='#direct'){ document.querySelector('#nav a[data-view=direct]').click(); }
+});
+window.addEventListener('resize',()=>{[rProj,rTou,rComp,dStack,dCum,dBe].forEach(c=>c&&c.resize());});
+</script>
+</body>
+</html>
