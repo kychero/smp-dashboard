@@ -708,7 +708,7 @@
       const champ=modelRows.find(x=>x.role==='champion')||modelRows.find(x=>x.id===D.meta.champion_id)||{};
       byDay.set(day,{day,actualAvg:actualAvg==null?null:+actualAvg.toFixed(1),models:modelRows,best,ens,champ});
     });
-    return [...byDay.values()].sort((a,b)=>String(a.day).localeCompare(String(b.day)));
+    return [...byDay.values()].sort((a,b)=>String(b.day).localeCompare(String(a.day)));
   }
 
   function buildBtTools(){
