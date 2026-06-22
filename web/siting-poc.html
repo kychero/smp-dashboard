@@ -185,6 +185,7 @@
     </div>
   </aside>
 
+<script src="https://map.vworld.kr/js/webglMapInit.js.do?version=3.0&apiKey=3DB63A36-7CA5-39E7-9C9A-A9747E8E1C46"></script>
 <script>
 /* ============================================================
    설정 — 본인 키로 교체하고, 발급 시 사용 도메인을 등록할 것.
@@ -235,15 +236,20 @@ function boot(){
   if(VWORLD_KEY==="YOUR_VWORLD_KEY"){
     log('VWORLD_KEY가 비어 있습니다. 코드 상단에 인증키를 넣어주세요.','e'); return;
   }
-  log('VWorld 3D 스크립트 로딩…');
-  const s=document.createElement('script');
-  s.src=`https://map.vworld.kr/js/webglMapInit.js.do?version=3.0&apiKey=${VWORLD_KEY}`;
-  s.onload=()=>{ log('스크립트 로드됨. vw 객체 대기…','g'); waitForVw(0); };
-  s.onerror=()=>log('스크립트 로드 실패 — 키/도메인/네트워크 확인.','e');
-  document.head.appendChild(s);
+  if(typeof vworldIsValid !== 'undefined' && String(vworldIsValid) !== 'true'){
+    log('VWorld 인증 오류: '+(window.vworldErrMsg || 'API Key와 URI 등록 상태를 확인하세요.'),'e');
+    log('VWorld 콘솔에서 https://kychero.github.io 및 /smp-dashboard/siting-poc.html URI 등록이 필요합니다.','e');
+    return;
+  }
+  log('VWorld 3D API 준비 확인…');
+  waitForVw(0);
 }
 function waitForVw(n){
   if(window.vw && vw.Map){ initMap(); return; }
+  if(typeof vworldIsValid !== 'undefined' && String(vworldIsValid) !== 'true'){
+    log('VWorld 인증 오류: '+(window.vworldErrMsg || 'API Key와 URI 등록 상태를 확인하세요.'),'e');
+    return;
+  }
   if(n>80){ log('vw 객체가 로드되지 않았습니다(타임아웃).','e'); return; }
   setTimeout(()=>waitForVw(n+1),150);
 }
