@@ -160,6 +160,7 @@
       <a data-view="longterm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18L9 12l4 3 8-9"/><path d="M21 6v5h-5"/></svg>장기 SMP 전망</a>
       <a data-view="ppa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V5M4 9h16M4 14h16M20 19V5"/></svg>PPA 가격 전망</a>
       <a data-view="gridmap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l-6 3V6l6-3 6 3 6-3v15l-6 3-6-3z"/><path d="M9 3v15M15 6v15"/></svg>계통지도</a>
+      <a data-view="siting"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s7-4.6 7-11a7 7 0 10-14 0c0 6.4 7 11 7 11z"/><circle cx="12" cy="10" r="2"/><path d="M4 21h16"/></svg>3D 입지분석</a>
       <a data-view="retaildirect"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg>소매·직접구매</a>
       <div class="navgrp">수익</div>
       <a data-view="plant"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V8l8-4 8 4v12"/><path d="M8 20v-8h8v8"/></svg>재생에너지 발전소 수익분석</a>
@@ -426,6 +427,11 @@
     <iframe class="map-frame" src="./grid-map.html" title="계통지도"></iframe>
     <p class="foot">* 변전소·송전선로 지도는 공개 계통 기준 데이터로 구성했습니다. 공식 OpenAPI 수집 결과인 capacity.js가 있으면 변전소별 여유용량 등급과 요약이 함께 표시됩니다.</p>
   </section><!-- /view-gridmap -->
+
+  <section id="view-siting" class="view">
+    <iframe class="map-frame" src="./siting-poc.html" title="3D 입지·음영 분석"></iframe>
+    <p class="foot">* VWorld WebGL 3D API 기반 입지분석 PoC입니다. 태양위치·음영·3D 건물·데모 모듈 어레이를 확인하고, 추후 계통 여유용량·이격거리·모듈 자동배치와 연결합니다.</p>
+  </section><!-- /view-siting -->
 
   <section id="view-retaildirect" class="view">
     <iframe class="map-frame" src="./retail-direct.html" title="전력소매 가격 전망과 직접구매 경제성"></iframe>
@@ -859,6 +865,7 @@
     longterm:['장기 SMP 전망','정책 시나리오 기반 2026-2035 경로'],
     ppa:['PPA 가격 전망','RPS 낙찰가/상한가 · PPA · 시장가 비교'],
     gridmap:['계통지도','변전소 · 송전선로 · 접속 여유용량'],
+    siting:['3D 입지분석','VWorld 3D · 태양위치 · 음영 · 모듈 배치 PoC'],
     retaildirect:['전력소매 · 직접구매','산업용 요금 전망 · KPX 직접구매 경제성'],
     plant:['재생에너지 발전소 수익분석','단기 SMP+REC vs 장기 RPS/PPA'],
     revenue:['ESS 수익계산','SMP 기반 ESS 차익 · CP · 보조금'],
@@ -1393,7 +1400,7 @@
   initVisible(); initForecastTableToggle(); renderAll();
   const initial=(location.hash||'#forecast').slice(1);
   const initialView=initial==='validation'?'backtest':initial;
-  showView(['forecast','backtest','longterm','ppa','gridmap','retaildirect','plant','revenue','about'].includes(initialView)?initialView:'forecast');
+  showView(['forecast','backtest','longterm','ppa','gridmap','siting','retaildirect','plant','revenue','about'].includes(initialView)?initialView:'forecast');
 })();
 </script>
 </body>

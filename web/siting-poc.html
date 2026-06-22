@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>입지분석 PoC · VWorld 3D + 음영</title>
+<style>
+  :root{
+    --bg:#0c1117; --panel:#11171f; --panel-2:#0e141b; --line:#1f2935;
+    --ink:#e7edf3; --muted:#7e8a99; --dim:#586573;
+    --gold:#f2b705; --gold-soft:#3a2f08; --cyan:#35c4d7; --cyan-soft:#0c2a30;
+    --ok:#3ecf8e; --warn:#e0654a;
+    --mono:"SFMono-Regular",ui-monospace,"JetBrains Mono",Menlo,Consolas,monospace;
+    --sans:"Pretendard",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{
+    background:var(--bg);color:var(--ink);font-family:var(--sans);
+    display:flex;min-height:100vh;overflow:hidden;
+  }
+  /* ---- map ---- */
+  #stage{position:relative;flex:1;min-width:0;background:#05080c}
+  #vmap{position:absolute;inset:0}
+  #stage .badge{
+    position:absolute;left:14px;top:12px;z-index:5;
+    font-family:var(--mono);font-size:11px;letter-spacing:.06em;
+    color:var(--muted);background:rgba(8,12,17,.72);backdrop-filter:blur(6px);
+    border:1px solid var(--line);border-radius:6px;padding:6px 10px;
+  }
+  #stage .badge b{color:var(--gold);font-weight:600}
+  /* ---- panel ---- */
+  #panel{
+    width:336px;flex:none;background:var(--panel);border-left:1px solid var(--line);
+    display:flex;flex-direction:column;overflow-y:auto;
+  }
+  .head{padding:18px 18px 14px;border-bottom:1px solid var(--line)}
+  .head .kicker{font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;color:var(--cyan);text-transform:uppercase}
+  .head h1{margin:7px 0 3px;font-size:17px;font-weight:650;letter-spacing:-.01em}
+  .head p{margin:0;font-size:12px;color:var(--muted);line-height:1.45}
+  .group{padding:15px 18px;border-bottom:1px solid var(--line)}
+  .group:last-child{border-bottom:none}
+  .glabel{font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:var(--dim);text-transform:uppercase;margin-bottom:11px}
+  /* readout */
+  .readout{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .cell{background:var(--panel-2);padding:10px 11px}
+  .cell .k{font-size:10.5px;color:var(--muted);margin-bottom:4px}
+  .cell .v{font-family:var(--mono);font-size:18px;font-weight:600;color:var(--ink);line-height:1}
+  .cell .v small{font-size:11px;color:var(--muted);font-weight:400;margin-left:2px}
+  .cell.accent .v{color:var(--gold)}
+  /* segmented seasons */
+  .seg{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+  .seg button{
+    appearance:none;cursor:pointer;font-family:var(--sans);font-size:12px;font-weight:550;
+    color:var(--muted);background:var(--panel-2);border:1px solid var(--line);border-radius:7px;
+    padding:9px 0;transition:all .12s ease;
+  }
+  .seg button:hover{color:var(--ink);border-color:var(--dim)}
+  .seg button[aria-pressed="true"]{
+    color:#1a1304;background:var(--gold);border-color:var(--gold);box-shadow:0 0 0 1px var(--gold)
+  }
+  .seg button small{display:block;font-family:var(--mono);font-size:9px;font-weight:400;opacity:.7;margin-top:2px}
+  /* slider */
+  .timerow{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:9px}
+  .timerow .clock{font-family:var(--mono);font-size:22px;font-weight:600;color:var(--cyan)}
+  .timerow .hint{font-size:11px;color:var(--muted)}
+  input[type=range]{width:100%;accent-color:var(--gold);height:22px;cursor:pointer}
+  .ticks{display:flex;justify-content:space-between;font-family:var(--mono);font-size:9px;color:var(--dim);margin-top:2px}
+  /* toggles */
+  .toggle{display:flex;align-items:center;justify-content:space-between;padding:9px 0;font-size:13px}
+  .toggle + .toggle{border-top:1px dashed var(--line)}
+  .toggle span.lab{color:var(--ink)}
+  .toggle span.sub{display:block;font-size:11px;color:var(--muted);margin-top:2px}
+  .switch{position:relative;width:42px;height:23px;flex:none}
+  .switch input{opacity:0;width:0;height:0;position:absolute}
+  .switch .track{position:absolute;inset:0;background:var(--panel-2);border:1px solid var(--line);border-radius:99px;transition:.15s}
+  .switch .track::after{content:"";position:absolute;left:3px;top:2.5px;width:16px;height:16px;border-radius:50%;background:var(--dim);transition:.15s}
+  .switch input:checked + .track{background:var(--cyan-soft);border-color:var(--cyan)}
+  .switch input:checked + .track::after{transform:translateX(19px);background:var(--cyan)}
+  .switch input:focus-visible + .track{outline:2px solid var(--cyan);outline-offset:2px}
+  /* coord input */
+  .coord{display:grid;grid-template-columns:1fr 1fr auto;gap:7px}
+  .coord input{
+    font-family:var(--mono);font-size:12px;color:var(--ink);background:var(--panel-2);
+    border:1px solid var(--line);border-radius:6px;padding:8px 9px;min-width:0;
+  }
+  .coord input:focus{outline:2px solid var(--cyan);outline-offset:1px;border-color:var(--cyan)}
+  .coord button,.act{
+    appearance:none;cursor:pointer;font-family:var(--sans);font-size:12px;font-weight:600;
+    color:#06181b;background:var(--cyan);border:none;border-radius:6px;padding:0 13px;transition:.12s;
+  }
+  .coord button:hover,.act:hover{filter:brightness(1.08)}
+  .act{width:100%;padding:10px 0;margin-top:10px}
+  /* status */
+  #status{
+    font-family:var(--mono);font-size:11px;line-height:1.5;color:var(--muted);
+    background:var(--panel-2);border:1px solid var(--line);border-radius:7px;padding:10px 11px;
+    max-height:120px;overflow-y:auto;white-space:pre-wrap;
+  }
+  #status .e{color:var(--warn)} #status .g{color:var(--ok)}
+  .foot{padding:13px 18px 20px;font-size:10.5px;color:var(--dim);line-height:1.5}
+  @media (max-width:760px){
+    body{flex-direction:column;overflow:auto}
+    #stage{height:48vh;flex:none}
+    #panel{width:100%;border-left:none;border-top:1px solid var(--line)}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+  <div id="stage">
+    <div id="vmap"></div>
+    <div class="badge">입지 · <b id="badgeCoord">—</b></div>
+  </div>
+
+  <aside id="panel">
+    <div class="head">
+      <div class="kicker">Grid Map · Siting PoC</div>
+      <h1>3D 입지·음영 분석</h1>
+      <p>VWorld WebGL 3D(Cesium) 위에 태양위치와 음영을 얹은 단일 필지 프로토타입입니다.</p>
+    </div>
+
+    <div class="group">
+      <div class="glabel">태양 · 음영</div>
+      <div class="readout">
+        <div class="cell accent"><div class="k">태양고도</div><div class="v"><span id="rAlt">—</span><small>°</small></div></div>
+        <div class="cell"><div class="k">방위각(북기준)</div><div class="v"><span id="rAz">—</span><small>°</small></div></div>
+      </div>
+    </div>
+
+    <div class="group">
+      <div class="glabel">절기</div>
+      <div class="seg" id="seasons">
+        <button data-s="chunbun" aria-pressed="true">춘분<small>3·20</small></button>
+        <button data-s="haji">하지<small>6·21</small></button>
+        <button data-s="chubun">추분<small>9·23</small></button>
+        <button data-s="dongji">동지<small>12·22</small></button>
+      </div>
+    </div>
+
+    <div class="group">
+      <div class="glabel">시각</div>
+      <div class="timerow">
+        <span class="clock" id="clock">16:30</span>
+        <span class="hint" id="sunNote">—</span>
+      </div>
+      <input type="range" id="time" min="5" max="19" step="0.25" value="16.5" />
+      <div class="ticks"><span>05</span><span>09</span><span>12</span><span>16</span><span>19</span></div>
+    </div>
+
+    <div class="group">
+      <div class="glabel">표시</div>
+      <label class="toggle">
+        <span><span class="lab">그림자</span><span class="sub">태양 방향 기준 실시간 음영</span></span>
+        <span class="switch"><input type="checkbox" id="tgShadow" checked><span class="track"></span></span>
+      </label>
+      <label class="toggle">
+        <span><span class="lab">3D 건물</span><span class="sub">VWorld facility_build 레이어</span></span>
+        <span class="switch"><input type="checkbox" id="tgBuild" checked><span class="track"></span></span>
+      </label>
+      <label class="toggle">
+        <span><span class="lab">데모 모듈 어레이</span><span class="sub">5×3 패널 — 음영 확인용 placeholder</span></span>
+        <span class="switch"><input type="checkbox" id="tgArray" checked><span class="track"></span></span>
+      </label>
+    </div>
+
+    <div class="group">
+      <div class="glabel">대상 좌표 (경도, 위도)</div>
+      <div class="coord">
+        <input id="inLon" value="127.0200" inputmode="decimal" aria-label="경도">
+        <input id="inLat" value="37.0355" inputmode="decimal" aria-label="위도">
+        <button id="goMove">이동</button>
+      </div>
+      <button class="act" id="goView">입지로 카메라 이동</button>
+    </div>
+
+    <div class="group">
+      <div class="glabel">상태</div>
+      <div id="status">대기 중…</div>
+    </div>
+
+    <div class="foot">
+      먼저 코드 상단 <code>VWORLD_KEY</code>에 본인 VWorld 인증키를 넣고, 발급 시 이 페이지의 도메인을 등록하세요.
+      음영·태양위치는 Cesium 네이티브로 계산하며, 데모 어레이는 배치 알고리즘 연결 전 placeholder입니다.
+    </div>
+  </aside>
+
+<script>
+/* ============================================================
+   설정 — 본인 키로 교체하고, 발급 시 사용 도메인을 등록할 것.
+   ============================================================ */
+const VWORLD_KEY = "3DB63A36-7CA5-39E7-9C9A-A9747E8E1C46";
+
+/* ---- 상태 로깅 ---- */
+const $status = document.getElementById('status');
+function log(msg, cls){ const t=new Date().toLocaleTimeString('ko-KR',{hour12:false});
+  $status.innerHTML += `\n<span class="${cls||''}">[${t}] ${msg}</span>`; $status.scrollTop=1e9; }
+$status.textContent = '';
+
+/* ---- 전역 ---- */
+let viewer = null;        // Cesium Viewer (vw.ws3dInitCallBack에서 주입)
+let vwMap = null;         // vw.Map
+let arrayEntities = [];   // 데모 패널 엔티티
+let LON = parseFloat(document.getElementById('inLon').value);
+let LAT = parseFloat(document.getElementById('inLat').value);
+let season = 'chunbun';
+let hour = 16.5;
+
+/* ---- 태양위치 (SunCalc 기반, 읽기용 수치) ---- */
+function sunPosition(date, lat, lng){
+  const rad=Math.PI/180, dayMs=864e5, J1970=2440588, J2000=2451545;
+  const toDays=d=>(d.valueOf()/dayMs-0.5+J1970)-J2000;
+  const e=rad*23.4397;
+  const ra=(l)=>Math.atan2(Math.sin(l)*Math.cos(e),Math.cos(l));
+  const dec=(l)=>Math.asin(Math.sin(e)*Math.sin(l));
+  const sid=(d,lw)=>rad*(280.16+360.9856235*d)-lw;
+  const M=d=>rad*(357.5291+0.98560028*d);
+  const L=m=>m+rad*(1.9148*Math.sin(m)+0.02*Math.sin(2*m)+0.0003*Math.sin(3*m))+rad*102.9372+Math.PI;
+  const lw=rad*-lng, phi=rad*lat, d=toDays(date);
+  const l=L(M(d)), de=dec(l), r=ra(l), H=sid(d,lw)-r;
+  const alt=Math.asin(Math.sin(phi)*Math.sin(de)+Math.cos(phi)*Math.cos(de)*Math.cos(H));
+  let az=Math.atan2(Math.sin(H),Math.cos(H)*Math.sin(phi)-Math.tan(de)*Math.cos(phi))+Math.PI;
+  return { altitude:alt/rad, azimuth:((az/rad)%360+360)%360 };
+}
+/* 절기·시각 → 해당 순간(UTC 내부, KST 입력) */
+function buildInstant(s, hf){
+  const y=new Date().getFullYear();
+  const md={chunbun:[2,20],haji:[5,21],chubun:[8,23],dongji:[11,22]}[s];
+  const h=Math.floor(hf), m=Math.round((hf-h)*60);
+  return new Date(Date.UTC(y, md[0], md[1], h-9, m)); // KST→UTC
+}
+
+/* ---- VWorld 3D 로드 ---- */
+function boot(){
+  if(VWORLD_KEY==="YOUR_VWORLD_KEY"){
+    log('VWORLD_KEY가 비어 있습니다. 코드 상단에 인증키를 넣어주세요.','e'); return;
+  }
+  log('VWorld 3D 스크립트 로딩…');
+  const s=document.createElement('script');
+  s.src=`https://map.vworld.kr/js/webglMapInit.js.do?version=3.0&apiKey=${VWORLD_KEY}`;
+  s.onload=()=>{ log('스크립트 로드됨. vw 객체 대기…','g'); waitForVw(0); };
+  s.onerror=()=>log('스크립트 로드 실패 — 키/도메인/네트워크 확인.','e');
+  document.head.appendChild(s);
+}
+function waitForVw(n){
+  if(window.vw && vw.Map){ initMap(); return; }
+  if(n>80){ log('vw 객체가 로드되지 않았습니다(타임아웃).','e'); return; }
+  setTimeout(()=>waitForVw(n+1),150);
+}
+function initMap(){
+  log('3D 지도 초기화…');
+  // 3D 준비 완료 콜백 — 여기서 전역 viewer(Cesium) 사용 가능
+  vw.ws3dInitCallBack = function(){
+    try{
+      viewer = window.viewer || (vw.ws3d && vw.ws3d.viewer) || null;
+    }catch(_){}
+    if(!viewer && typeof window.viewer!=='undefined') viewer=window.viewer;
+    if(!viewer){ log('viewer(Cesium) 핸들을 찾지 못했습니다. API 버전 확인 필요.','e'); return; }
+    log('3D 준비 완료 · Cesium viewer 확보','g');
+    onReady();
+  };
+  try{
+    const init = new vw.CameraPosition(new vw.CoordZ(LON, LAT, 1200), new vw.Direction(0,-55,0));
+    vwMap = new vw.Map();
+    vwMap.setOption({ mapId:"vmap", initPosition:init, logo:false, navigation:true });
+    vwMap.setMapId("vmap");
+    vwMap.setInitPosition(init);
+    vwMap.start();
+    log('vwMap.start() 호출됨 · 3D 콜백 대기…');
+  }catch(err){ log('지도 생성 오류: '+err.message,'e'); }
+}
+
+/* ---- 3D 준비 후 세팅 ---- */
+function onReady(){
+  if(typeof Cesium==='undefined'){ log('Cesium 전역이 없습니다. 음영 기능 비활성.','e'); }
+  else {
+    try{
+      viewer.scene.globe.enableLighting = true;
+      viewer.shadows = true;
+      if(viewer.shadowMap){ viewer.shadowMap.enabled=true; viewer.shadowMap.softShadows=true; viewer.shadowMap.size=2048; }
+      viewer.clock.shouldAnimate=false; viewer.clock.multiplier=0;
+      log('조명·그림자 활성화','g');
+    }catch(err){ log('그림자 설정 오류: '+err.message,'e'); }
+  }
+  setView();
+  if(document.getElementById('tgArray').checked) addArray();
+  applySun();
+}
+
+function requestRender(){ try{ viewer.scene.requestRender && viewer.scene.requestRender(); }catch(_){} }
+
+/* ---- 카메라 ---- */
+function setView(){
+  try{
+    if(typeof Cesium!=='undefined'){
+      viewer.camera.setView({
+        destination: Cesium.Cartesian3.fromDegrees(LON, LAT, 480),
+        orientation:{ heading:Cesium.Math.toRadians(0), pitch:Cesium.Math.toRadians(-40), roll:0 }
+      });
+    } else if(vwMap){
+      vwMap.setInitPosition(new vw.CameraPosition(new vw.CoordZ(LON,LAT,480), new vw.Direction(0,-40,0)));
+    }
+    requestRender();
+  }catch(err){ log('카메라 이동 오류: '+err.message,'e'); }
+}
+
+/* ---- 데모 어레이 (음영 확인용 박스 패널) ---- */
+function addArray(){
+  if(typeof Cesium==='undefined'){ log('Cesium 없음 — 데모 어레이 생략.','e'); return; }
+  removeArray();
+  const cols=5, rows=3, pw=2.0, ph=1.0, gx=0.7, gy=0.7, z=1.7;
+  const mPerDegLat=111320, mPerDegLon=111320*Math.cos(LAT*Math.PI/180);
+  const W=cols*pw+(cols-1)*gx, H=rows*ph+(rows-1)*gy;
+  for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){
+    const dx=(c*(pw+gx))-W/2+pw/2, dy=(r*(ph+gy))-H/2+ph/2;
+    const lon=LON+dx/mPerDegLon, lat=LAT+dy/mPerDegLat;
+    arrayEntities.push(viewer.entities.add({
+      position: Cesium.Cartesian3.fromDegrees(lon, lat, z),
+      box:{ dimensions:new Cesium.Cartesian3(pw, ph, 0.07),
+        material: Cesium.Color.fromCssColorString('#2b5fb0').withAlpha(0.96),
+        outline:true, outlineColor:Cesium.Color.fromCssColorString('#9fc0ff'),
+        shadows: Cesium.ShadowMode.ENABLED }
+    }));
+  }
+  log(`데모 어레이 ${arrayEntities.length}장 배치`,'g'); requestRender();
+}
+function removeArray(){ arrayEntities.forEach(e=>{try{viewer.entities.remove(e)}catch(_){}}); arrayEntities=[]; }
+
+/* ---- 건물 레이어 ---- */
+function setBuildings(on){
+  try{
+    const el = vwMap.getLayerElement('facility_build');
+    if(el){ on?el.show():el.hide(); log('건물 레이어 '+(on?'표시':'숨김')); }
+    else log('facility_build 레이어를 찾지 못함(영역/버전 확인).','e');
+    requestRender();
+  }catch(err){ log('건물 토글 오류: '+err.message,'e'); }
+}
+
+/* ---- 태양 적용 + 읽기값 ---- */
+function applySun(){
+  const inst = buildInstant(season, hour);
+  if(viewer && typeof Cesium!=='undefined'){
+    try{ viewer.clock.currentTime = Cesium.JulianDate.fromDate(inst); requestRender(); }
+    catch(err){ log('clock 설정 오류: '+err.message,'e'); }
+  }
+  const sp = sunPosition(inst, LAT, LON);
+  document.getElementById('rAlt').textContent = sp.altitude.toFixed(1);
+  document.getElementById('rAz').textContent  = sp.azimuth.toFixed(0);
+  const below = sp.altitude<=0;
+  document.getElementById('sunNote').textContent = below?'일몰 — 음영 없음':'태양고도 '+sp.altitude.toFixed(0)+'°';
+  document.getElementById('sunNote').style.color = below?'var(--warn)':'var(--muted)';
+}
+
+/* ---- UI 바인딩 ---- */
+function fmtClock(hf){ const h=Math.floor(hf), m=Math.round((hf-h)*60);
+  return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0'); }
+
+document.getElementById('seasons').addEventListener('click', e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  document.querySelectorAll('#seasons button').forEach(x=>x.setAttribute('aria-pressed', x===b));
+  season=b.dataset.s; applySun();
+});
+const $time=document.getElementById('time');
+$time.addEventListener('input', ()=>{ hour=parseFloat($time.value);
+  document.getElementById('clock').textContent=fmtClock(hour); applySun(); });
+
+document.getElementById('tgShadow').addEventListener('change', e=>{
+  if(!viewer) return;
+  try{ viewer.shadows=e.target.checked; if(viewer.shadowMap) viewer.shadowMap.enabled=e.target.checked; requestRender(); }
+  catch(err){ log('그림자 토글 오류: '+err.message,'e'); }
+});
+document.getElementById('tgBuild').addEventListener('change', e=>setBuildings(e.target.checked));
+document.getElementById('tgArray').addEventListener('change', e=>{
+  if(!viewer) return; e.target.checked?addArray():removeArray(); requestRender(); });
+
+function readCoord(){
+  const lon=parseFloat(document.getElementById('inLon').value);
+  const lat=parseFloat(document.getElementById('inLat').value);
+  if(isNaN(lon)||isNaN(lat)){ log('좌표 형식 오류.','e'); return false; }
+  LON=lon; LAT=lat; document.getElementById('badgeCoord').textContent=lon.toFixed(4)+', '+lat.toFixed(4);
+  return true;
+}
+document.getElementById('goMove').addEventListener('click', ()=>{
+  if(!readCoord()) return;
+  if(arrayEntities.length){ addArray(); } applySun(); setView();
+});
+document.getElementById('goView').addEventListener('click', setView);
+
+/* ---- init ---- */
+document.getElementById('clock').textContent=fmtClock(hour);
+document.getElementById('badgeCoord').textContent=LON.toFixed(4)+', '+LAT.toFixed(4);
+applySun(); // 키 없어도 수치 미리보기는 동작
+window.addEventListener('load', boot);
+</script>
+</body>
+</html>
