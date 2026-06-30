@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>대시보드 | ENERLINE</title>
+<style>
+:root{
+  --bg:#f5f6f8; --panel:#fff; --ink:#172033; --muted:#6b7280; --line:#e4e7ec;
+  --brand:#9D2235; --nav:#101828; --nav2:#1d2939; --gold:#C68A1E; --green:#2E7D74;
+  --blue:#1F3A5F; --shadow:0 14px 32px rgba(16,24,40,.08);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;letter-spacing:0}
+a{color:inherit;text-decoration:none}
+.app{min-height:100vh;display:grid;grid-template-columns:248px minmax(0,1fr)}
+.side{background:linear-gradient(180deg,var(--nav),var(--nav2));color:#eef2f7;padding:22px 16px;display:flex;flex-direction:column;gap:20px}
+.brand{display:flex;align-items:center;min-height:40px;padding:0 8px;font-weight:900;font-size:22px;letter-spacing:.08em}
+.brand::before{content:"ENERLINE";display:inline-flex;align-items:center;color:#fff}
+.logo{display:none}
+nav{display:flex;flex-direction:column;gap:4px}
+nav small{color:#98a2b3;font-size:11px;font-weight:800;margin:18px 10px 6px;text-transform:uppercase}
+nav a{display:flex;align-items:center;gap:10px;padding:10px 11px;border-radius:8px;color:#d0d5dd;font-size:14px}
+nav a:hover,nav a.active{background:rgba(255,255,255,.1);color:#fff}
+.d{width:20px;text-align:center;color:#cfd6e3}
+.side__foot{margin-top:auto;border-top:1px solid rgba(255,255,255,.12);padding:16px 10px 4px;color:#b9c2d0;font-size:12px;line-height:1.6}
+.main{min-width:0}
+.topbar{height:64px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:20px;padding:0 26px;position:sticky;top:0;z-index:2}
+.topbar strong{font-size:18px}
+.search{flex:1;max-width:520px}
+.search input{width:100%;height:38px;border:1px solid var(--line);background:#f9fafb;border-radius:8px;padding:0 13px;font:inherit}
+.right{margin-left:auto;display:flex;align-items:center;gap:14px}
+.bell{font-size:18px}.avatar{width:34px;height:34px;border-radius:50%;background:var(--brand);color:#fff;display:grid;place-items:center;font-weight:800;font-size:13px}
+.content{padding:28px;max-width:1440px;margin:0 auto}
+.page-head{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:22px}
+h1{margin:0;font-size:30px;line-height:1.2}p{margin:8px 0 0;color:var(--muted)}
+.btn{display:inline-flex;align-items:center;justify-content:center;border-radius:8px;border:1px solid transparent;font-weight:800}
+.btn--primary{background:var(--brand);color:#fff}.btn--sm{height:36px;padding:0 13px;font-size:13px}
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+.kpi,.panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow)}
+.kpi{padding:18px}.lab{color:var(--muted);font-size:12px;font-weight:800}.val{font-size:30px;font-weight:900;margin-top:10px}.val small{font-size:13px;color:var(--muted)}
+.chg{font-size:12px;margin-top:8px;font-weight:800}.chg.down{color:var(--brand)}.chg.up{color:var(--green)}
+.grid{display:grid;gap:16px}.g2{grid-template-columns:repeat(2,minmax(0,1fr))}.mt24{margin-top:24px}
+.panel{padding:18px;min-width:0}.panel__head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+h3{margin:0;font-size:16px}.chips{display:flex;gap:6px;flex-wrap:wrap}.chip{border:1px solid var(--line);border-radius:999px;padding:5px 9px;color:var(--muted);font-size:12px;background:#fff}.chip.on{border-color:var(--brand);color:var(--brand);font-weight:800}
+table{width:100%;border-collapse:collapse;font-size:13px}td{border-top:1px solid var(--line);padding:12px 8px}.muted{color:var(--muted)}
+.badge{display:inline-flex;border-radius:999px;padding:3px 7px;font-size:11px;font-weight:900}.badge.new{background:#fde8ec;color:var(--brand)}.badge.q{background:#eef2ff;color:var(--blue)}.badge.g{background:#e7f5f2;color:var(--green)}
+.note{background:#fff7e6;border:1px solid #f2d39a;color:#6d4b12;border-radius:8px;padding:14px 16px;font-size:14px}
+canvas{max-width:100%}
+@media(max-width:980px){.app{grid-template-columns:1fr}.side{position:relative}.kpis,.g2,.grid[style]{grid-template-columns:1fr!important}.page-head{flex-direction:column}.content{padding:20px}.topbar{padding:0 18px}.search{display:none}}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+</head>
+<body>
+<div class="app">
+  <!-- SIDEBAR -->
+  <aside class="side">
+    <a class="brand" href="dashboard.html" aria-label="ENERLINE"></a>
+    <nav>
+      <small>워크스페이스</small>
+      <a href="dashboard.html" class="active"><span class="d">▦</span> 대시보드</a>
+      <a href="reports.html"><span class="d">▤</span> 리포트</a>
+      <a href="data.html"><span class="d">◷</span> 데이터·전망</a>
+      <a href="scenario.html"><span class="d">⊞</span> 시나리오</a>
+      <small>인텔리전스</small>
+      <a href="#"><span class="d">◔</span> 정책 트래커</a>
+      <a href="#"><span class="d">◇</span> 웨비나·Q&A</a>
+      <a href="#"><span class="d">⚲</span> AI 질의응답</a>
+      <small>계정</small>
+      <a href="pricing.html"><span class="d">◈</span> 구독·결제</a>
+    </nav>
+    <div class="side__foot">Pro 플랜 · 5좌석<br>info@keicltd.com</div>
+  </aside>
+
+  <!-- MAIN -->
+  <div class="main">
+    <div class="topbar">
+      <strong>대시보드</strong>
+      <div class="search"><input placeholder="SMP, REC, CPPA, 리포트 검색…"></div>
+      <div class="right"><span class="bell">🔔</span><span class="avatar">KI</span></div>
+    </div>
+
+    <div class="content">
+      <div class="page-head">
+        <div><h1>안녕하세요, 김유창님 👋</h1><p>2026년 6월 29일 · Q2 2026 리포트가 발간되었습니다</p></div>
+        <a href="reports.html" class="btn btn--primary btn--sm">Q2 2026 리포트 열기</a>
+      </div>
+
+      <!-- KPIs -->
+      <div class="kpis">
+        <div class="kpi"><div class="lab">SMP (육지, 최근월)</div><div class="val">105<small> ₩/kWh</small></div><div class="chg down">▼ 2.8% MoM</div></div>
+        <div class="kpi"><div class="lab">REC 현물가</div><div class="val">72<small> ₩/REC</small></div><div class="chg down">▼ 5.1% QoQ</div></div>
+        <div class="kpi"><div class="lab">산업용 전기요금(평균)</div><div class="val">184<small> ₩/kWh</small></div><div class="chg up">▲ 46% vs 2021</div></div>
+        <div class="kpi"><div class="lab">20년 태양광 CPPA</div><div class="val">165<small> ₩/kWh</small></div><div class="chg down">▼ 협상범위 확대</div></div>
+      </div>
+
+      <!-- charts row -->
+      <div class="grid g2 mt24">
+        <div class="panel">
+          <div class="panel__head"><h3>SMP 장기 전망 (육지)</h3>
+            <div class="chips"><span class="chip on">Central</span><span class="chip">High</span><span class="chip">Low</span></div></div>
+          <canvas id="c1" height="200"></canvas>
+        </div>
+        <div class="panel">
+          <div class="panel__head"><h3>재생에너지 발전량 가중평균가격 (GWA)</h3></div>
+          <canvas id="c2" height="200"></canvas>
+        </div>
+      </div>
+
+      <div class="grid g2 mt24" style="grid-template-columns:1.4fr 1fr">
+        <div class="panel">
+          <div class="panel__head"><h3>설비용량 믹스 전망 (GW)</h3>
+            <div class="chips"><span class="chip">2030</span><span class="chip on">2040</span><span class="chip">2050</span></div></div>
+          <canvas id="c3" height="170"></canvas>
+        </div>
+        <div class="panel">
+          <div class="panel__head"><h3>정책 트래커</h3><a href="#" class="chip">전체</a></div>
+          <table>
+            <tbody>
+              <tr><td><span class="badge new">신규</span></td><td>6차 신재생에너지 기본계획</td><td class="muted">발표 예정</td></tr>
+              <tr><td><span class="badge q">제도</span></td><td>산업용 TOU 요금제 개편 시행</td><td class="muted">4/16</td></tr>
+              <tr><td><span class="badge g">입찰</span></td><td>1.8GW KEA 해상풍력 입찰 공고</td><td class="muted">3/30</td></tr>
+              <tr><td><span class="badge q">제도</span></td><td>해상풍력 특별법 시행</td><td class="muted">3/26</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="note mt24">💡 Q2 2026 핵심: 이란 분쟁으로 2026–29 가스가격 상승 → 단기 SMP 상향, 중장기는 중국 LNG 수입 둔화로 하향 조정.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const yrs=['26','30','35','40','45','50','55','60'];
+const base={responsive:true,plugins:{legend:{display:true,labels:{boxWidth:10,font:{size:10}}}},
+  scales:{y:{grid:{color:'#eee'},ticks:{font:{size:10}}},x:{grid:{display:false},ticks:{font:{size:10}}}}};
+new Chart(c1,{type:'line',data:{labels:yrs,datasets:[
+  {label:'Central',data:[132,118,122,126,132,136,138,140],borderColor:'#9D2235',backgroundColor:'rgba(157,34,53,.08)',fill:true,borderWidth:2.5,tension:.35,pointRadius:0},
+  {label:'High',data:[150,140,148,152,162,170,174,178],borderColor:'#C68A1E',borderWidth:1.5,tension:.35,pointRadius:0},
+  {label:'Low',data:[110,92,95,99,104,107,108,110],borderColor:'#1F3A5F',borderWidth:1.5,tension:.35,pointRadius:0},
+]},options:base});
+new Chart(c2,{type:'line',data:{labels:yrs,datasets:[
+  {label:'태양광',data:[125,110,98,88,80,74,70,68],borderColor:'#C68A1E',borderWidth:2,tension:.35,pointRadius:0},
+  {label:'육상풍력',data:[128,120,112,104,96,90,86,84],borderColor:'#2E7D74',borderWidth:2,tension:.35,pointRadius:0},
+  {label:'SMP',data:[132,118,122,126,132,136,138,140],borderColor:'#9D2235',borderDash:[4,3],borderWidth:1.5,tension:.35,pointRadius:0},
+]},options:base});
+new Chart(c3,{type:'bar',data:{labels:['원자력','석탄','가스','태양광','풍력','BESS·양수'],
+  datasets:[{label:'2040 (GW)',data:[31,12,42,75,38,28],backgroundColor:['#1F3A5F','#64748b','#C68A1E','#9D2235','#2E7D74','#b07d9c']}]},
+  options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{grid:{color:'#eee'},ticks:{font:{size:10}}},x:{grid:{display:false},ticks:{font:{size:10}}}}}});
+</script>
+</body>
+</html>
